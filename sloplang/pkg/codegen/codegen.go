@@ -150,6 +150,14 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return []ast.Stmt{
 			&ast.ExprStmt{X: callSloprt("IndexKeySet", g.lowerExpr(s.Object), g.lowerExpr(s.KeyVar), g.lowerExpr(s.Value))},
 		}
+	case *parser.FileWriteStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callSloprt("FileWrite", g.lowerExpr(s.Path), g.lowerExpr(s.Data))},
+		}
+	case *parser.FileAppendStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callSloprt("FileAppend", g.lowerExpr(s.Path), g.lowerExpr(s.Data))},
+		}
 	case *parser.ExprStmt:
 		return []ast.Stmt{
 			&ast.ExprStmt{X: g.lowerExpr(s.Expr)},
@@ -272,17 +280,35 @@ func (g *Generator) lowerReturnStmt(s *parser.ReturnStmt) []ast.Stmt {
 	}
 }
 
+func (g *Generator) isDualReturn(expr parser.Expr) bool {
+	switch e := expr.(type) {
+	case *parser.StdinReadExpr, *parser.FileReadExpr:
+		return true
+	case *parser.CallExpr:
+		return e.Name == "to_num"
+	}
+	return false
+}
+
 func (g *Generator) lowerMultiAssign(s *parser.MultiAssignStmt) []ast.Stmt {
-	// a, b = expr  →  a, b := sloprt.UnpackTwo(loweredExpr)
 	lhs := make([]ast.Expr, len(s.Names))
 	for i, name := range s.Names {
 		lhs[i] = ast.NewIdent(name)
 	}
 
+	var rhs []ast.Expr
+	if g.isDualReturn(s.Value) {
+		// Dual-return functions already return two values — no UnpackTwo needed
+		rhs = []ast.Expr{g.lowerExpr(s.Value)}
+	} else {
+		// a, b = expr  →  a, b := sloprt.UnpackTwo(loweredExpr)
+		rhs = []ast.Expr{callSloprt("UnpackTwo", g.lowerExpr(s.Value))}
+	}
+
 	assign := &ast.AssignStmt{
 		Lhs: lhs,
 		Tok: token.DEFINE,
-		Rhs: []ast.Expr{callSloprt("UnpackTwo", g.lowerExpr(s.Value))},
+		Rhs: rhs,
 	}
 
 	// Suppress unused variable errors
@@ -365,12 +391,16 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		default:
 			return callSloprt("Not", g.lowerExpr(e.Operand))
 		}
+	case *parser.StdinReadExpr:
+		return callSloprt("StdinRead")
+	case *parser.FileReadExpr:
+		return callSloprt("FileRead", g.lowerExpr(e.Path))
 	case *parser.CallExpr:
 		args := make([]ast.Expr, len(e.Args))
 		for i, arg := range e.Args {
 			args[i] = g.lowerExpr(arg)
 		}
-		builtins := map[string]string{"str": "Str"}
+		builtins := map[string]string{"str": "Str", "split": "Split", "to_num": "ToNum"}
 		if fname, ok := builtins[e.Name]; ok {
 			return callSloprt(fname, args...)
 		}

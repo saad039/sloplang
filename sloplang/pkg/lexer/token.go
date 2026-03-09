@@ -66,6 +66,12 @@ const (
 	TOKEN_DOUBLE_AT   // @@
 	TOKEN_DOLLAR      // $
 
+	// I/O
+	TOKEN_STDIN_READ  // <|
+	TOKEN_FILE_READ   // <.
+	TOKEN_FILE_WRITE  // .>
+	TOKEN_FILE_APPEND // .>>
+
 	// Keywords
 	TOKEN_TRUE  // true
 	TOKEN_FALSE // false
@@ -124,6 +130,10 @@ var tokenNames = map[TokenType]string{
 	TOKEN_DOUBLE_HASH: "DOUBLE_HASH",
 	TOKEN_DOUBLE_AT:   "DOUBLE_AT",
 	TOKEN_DOLLAR:      "DOLLAR",
+	TOKEN_STDIN_READ:  "STDIN_READ",
+	TOKEN_FILE_READ:   "FILE_READ",
+	TOKEN_FILE_WRITE:  "FILE_WRITE",
+	TOKEN_FILE_APPEND: "FILE_APPEND",
 	TOKEN_TRUE:        "TRUE",
 	TOKEN_FALSE:       "FALSE",
 	TOKEN_FN:          "FN",

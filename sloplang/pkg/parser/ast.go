@@ -284,3 +284,35 @@ type DynKeySetStmt struct {
 
 func (ds *DynKeySetStmt) stmtNode()            {}
 func (ds *DynKeySetStmt) TokenLiteral() string { return "@$=" }
+
+// StdinReadExpr represents: <| (reads one line from stdin)
+type StdinReadExpr struct{}
+
+func (sr *StdinReadExpr) exprNode()            {}
+func (sr *StdinReadExpr) TokenLiteral() string { return "<|" }
+
+// FileReadExpr represents: <. path (reads entire file)
+type FileReadExpr struct {
+	Path Expr
+}
+
+func (fr *FileReadExpr) exprNode()            {}
+func (fr *FileReadExpr) TokenLiteral() string { return "<." }
+
+// FileWriteStmt represents: .> path data
+type FileWriteStmt struct {
+	Path Expr
+	Data Expr
+}
+
+func (fw *FileWriteStmt) stmtNode()            {}
+func (fw *FileWriteStmt) TokenLiteral() string { return ".>" }
+
+// FileAppendStmt represents: .>> path data
+type FileAppendStmt struct {
+	Path Expr
+	Data Expr
+}
+
+func (fa *FileAppendStmt) stmtNode()            {}
+func (fa *FileAppendStmt) TokenLiteral() string { return ".>>" }

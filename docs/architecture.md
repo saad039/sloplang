@@ -32,7 +32,8 @@ sloplang/                          # project root
     │   │   └── codegen.go         # Generator: *Program → Go source (via go/ast)
     │   └── runtime/
     │       ├── slop_value.go      # SlopValue struct, NewSlopValue, IsTruthy, StdoutWrite, FormatValue
-    │       └── ops.go             # All operations: arithmetic, comparison, logical, array ops
+    │       ├── ops.go             # All operations: arithmetic, comparison, logical, array ops
+    │       └── io.go              # I/O: StdinRead, FileRead, FileWrite, FileAppend, Split, ToNum
     └── examples/                  # Example .slop programs
 ```
 
@@ -65,21 +66,21 @@ type Token struct {
 }
 ```
 
-Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithmetic, comparison, logical, array), delimiters, keywords (`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`, `null`), and return (`<-`).
+Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithmetic, comparison, logical, array), I/O (`<|`, `<.`, `.>`, `.>>`), delimiters, keywords (`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`, `null`), and return (`<-`).
 
 ### AST Nodes (`pkg/parser/ast.go`)
 
 Two interfaces: `Stmt` (statements) and `Expr` (expressions).
 
-**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynKeySetStmt
+**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynKeySetStmt, FileWriteStmt, FileAppendStmt
 
-**Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, NullLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr, KeyAccessExpr, DynKeyAccessExpr
+**Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, NullLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr, KeyAccessExpr, DynKeyAccessExpr, StdinReadExpr, FileReadExpr
 
 ## Lexer (`pkg/lexer/lexer.go`)
 
 Single-pass, character-by-character tokenizer. Key design decisions:
 
-- **Greedy multi-char matching:** `##`, `@@`, `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`, `**`, `==`, `!=`, `<=`, `>=`, `<-`, `|>`, `||`, `&&` are checked before their single-char prefixes
+- **Greedy multi-char matching:** `##`, `@@`, `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`, `**`, `==`, `!=`, `<=`, `>=`, `<-`, `<|`, `<.`, `|>`, `||`, `&&`, `.>`, `.>>` are checked before their single-char prefixes
 - **Keywords via map lookup:** `LookupIdent()` checks the `keywords` map, falling back to `TOKEN_IDENT`
 - **Number disambiguation:** digits followed by `u` → UINT, digits with `.` → FLOAT, else INT
 - **String escapes:** `\n`, `\t`, `\\`, `\"`
@@ -154,7 +155,8 @@ func main() {
 - **Variable tracking:** `declared map[string]bool` — first use emits `:=`, subsequent uses emit `=`
 - **Scope isolation:** `lowerFnDecl` saves/restores `declared`. Params pre-registered as declared.
 - **Unused variable suppression:** Every `:=` declaration followed by `_ = varName`
-- **Builtin dispatch:** `CallExpr` checks builtin map (`str` → `sloprt.Str`), else emits direct Go function call
+- **Builtin dispatch:** `CallExpr` checks builtin map (`str` → `sloprt.Str`, `split` → `sloprt.Split`, `to_num` → `sloprt.ToNum`), else emits direct Go function call
+- **Dual-return detection:** `isDualReturn()` identifies expressions that return two values (StdinReadExpr, FileReadExpr, `to_num` calls) — these skip `UnpackTwo` wrapping in `lowerMultiAssign`
 - **Binary op map:** Maps sloplang operators to runtime function names (e.g., `"+"` → `"Add"`, `"++"` → `"Concat"`)
 - **Unary op dispatch:** `-` → `Negate`, `!` → `Not`, `#` → `Length`, `~` → `Unique`, `##` → `MapKeys`, `@@` → `MapValues`
 - **Hashmap declaration:** `HashDeclStmt` lowers to `sloprt.MapFromKeysValues` with a `[]string` composite literal for keys
@@ -200,6 +202,16 @@ All operations are functions that take/return `*SlopValue`:
 | `MapKeys(sv)` | No | Returns array of key strings |
 | `MapValues(sv)` | No | Returns array of values (Keys stripped) |
 
+### I/O operations (`pkg/runtime/io.go`)
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `StdinRead()` | `(*SlopValue, *SlopValue)` | Reads one line from stdin; returns `(line, [0])` or `("", [1])` |
+| `FileRead(path)` | `(*SlopValue, *SlopValue)` | Reads entire file; returns `(data, [0])` or `("", [1])` |
+| `FileWrite(path, data)` | void | Writes data to file (truncates); panics on error |
+| `FileAppend(path, data)` | void | Appends data to file; panics on error |
+| `Split(sv, sep)` | `*SlopValue` | Splits string by separator; empty sep returns original |
+| `ToNum(sv)` | `(*SlopValue, *SlopValue)` | Parses string to int64/float64; returns `(val, [0])` or `([], [1])` |
+
 ### Helpers
 - `Str(sv)` — converts to string representation
 - `Iterate(sv)` — returns `[]*SlopValue` for for-in loops
@@ -215,6 +227,6 @@ All operations are functions that take/return `*SlopValue`:
 | 3 | Functions + Return + Control Flow | Done |
 | 4 | Array Operators | Done |
 | 5 | Hashmaps | Done |
-| 6 | I/O (stdin + file) | Planned |
+| 6 | I/O (stdin + file) | Done |
 | 7 | Error Handling Patterns | Planned |
 | 8 | Real Programs | Planned |

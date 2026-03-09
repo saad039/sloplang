@@ -1323,3 +1323,106 @@ func TestParser_IfWithComparison(t *testing.T) {
 		t.Fatalf("expected op '==', got %q", bin.Op)
 	}
 }
+
+func TestParser_StdinRead(t *testing.T) {
+	prog, errs := parse(`line, err = <|`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ma, ok := prog.Statements[0].(*MultiAssignStmt)
+	if !ok {
+		t.Fatalf("expected MultiAssignStmt, got %T", prog.Statements[0])
+	}
+	if ma.Names[0] != "line" || ma.Names[1] != "err" {
+		t.Fatalf("expected names [line, err], got %v", ma.Names)
+	}
+	if _, ok := ma.Value.(*StdinReadExpr); !ok {
+		t.Fatalf("expected StdinReadExpr, got %T", ma.Value)
+	}
+}
+
+func TestParser_FileRead(t *testing.T) {
+	prog, errs := parse(`data, err = <. "file.txt"`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ma, ok := prog.Statements[0].(*MultiAssignStmt)
+	if !ok {
+		t.Fatalf("expected MultiAssignStmt, got %T", prog.Statements[0])
+	}
+	fr, ok := ma.Value.(*FileReadExpr)
+	if !ok {
+		t.Fatalf("expected FileReadExpr, got %T", ma.Value)
+	}
+	sl, ok := fr.Path.(*StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral path, got %T", fr.Path)
+	}
+	if sl.Value != "file.txt" {
+		t.Fatalf("expected path 'file.txt', got %q", sl.Value)
+	}
+}
+
+func TestParser_FileReadVar(t *testing.T) {
+	prog, errs := parse(`data, err = <. path`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ma := prog.Statements[0].(*MultiAssignStmt)
+	fr := ma.Value.(*FileReadExpr)
+	id, ok := fr.Path.(*Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier path, got %T", fr.Path)
+	}
+	if id.Name != "path" {
+		t.Fatalf("expected path 'path', got %q", id.Name)
+	}
+}
+
+func TestParser_FileWrite(t *testing.T) {
+	prog, errs := parse(`.> "file.txt" "data"`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fw, ok := prog.Statements[0].(*FileWriteStmt)
+	if !ok {
+		t.Fatalf("expected FileWriteStmt, got %T", prog.Statements[0])
+	}
+	if fw.Path.(*StringLiteral).Value != "file.txt" {
+		t.Fatalf("expected path 'file.txt'")
+	}
+	if fw.Data.(*StringLiteral).Value != "data" {
+		t.Fatalf("expected data 'data'")
+	}
+}
+
+func TestParser_FileWriteVar(t *testing.T) {
+	prog, errs := parse(`.> path data`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fw := prog.Statements[0].(*FileWriteStmt)
+	if fw.Path.(*Identifier).Name != "path" {
+		t.Fatalf("expected path ident 'path'")
+	}
+	if fw.Data.(*Identifier).Name != "data" {
+		t.Fatalf("expected data ident 'data'")
+	}
+}
+
+func TestParser_FileAppend(t *testing.T) {
+	prog, errs := parse(`.>> "file.txt" "more"`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fa, ok := prog.Statements[0].(*FileAppendStmt)
+	if !ok {
+		t.Fatalf("expected FileAppendStmt, got %T", prog.Statements[0])
+	}
+	if fa.Path.(*StringLiteral).Value != "file.txt" {
+		t.Fatalf("expected path 'file.txt'")
+	}
+	if fa.Data.(*StringLiteral).Value != "more" {
+		t.Fatalf("expected data 'more'")
+	}
+}

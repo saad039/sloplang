@@ -1,0 +1,27 @@
+// Write to file
+.> "demo.txt" "hello file"
+
+// Read from file
+data, err = <. "demo.txt"
+if err != 0 {
+    |> "read failed"
+}
+|> data
+
+// Append to file
+.>> "demo.txt" "\nline two"
+
+// Read again
+data2, err2 = <. "demo.txt"
+|> data2
+
+// Split
+words = split("the cat sat on the mat", " ")
+|> str(words)
+
+// to_num
+val, nerr = to_num("42")
+|> str(val)
+
+badval, berr = to_num("abc")
+|> str(berr)

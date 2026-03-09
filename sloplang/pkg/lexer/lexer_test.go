@@ -611,6 +611,110 @@ func TestLexer_NullAssignment(t *testing.T) {
 	}
 }
 
+func TestLexer_StdinRead(t *testing.T) {
+	l := New(`line, err = <|`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IDENT, "line"}, {TOKEN_COMMA, ","}, {TOKEN_IDENT, "err"},
+		{TOKEN_ASSIGN, "="}, {TOKEN_STDIN_READ, "<|"}, {TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_FileRead(t *testing.T) {
+	l := New(`data, err = <. "file.txt"`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IDENT, "data"}, {TOKEN_COMMA, ","}, {TOKEN_IDENT, "err"},
+		{TOKEN_ASSIGN, "="}, {TOKEN_FILE_READ, "<."}, {TOKEN_STRING, "file.txt"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_FileWrite(t *testing.T) {
+	l := New(`.> "file.txt" "data"`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FILE_WRITE, ".>"}, {TOKEN_STRING, "file.txt"}, {TOKEN_STRING, "data"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_FileAppend(t *testing.T) {
+	l := New(`.>> "file.txt" "data"`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FILE_APPEND, ".>>"}, {TOKEN_STRING, "file.txt"}, {TOKEN_STRING, "data"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_IODisambiguation(t *testing.T) {
+	l := New(`<= <- << <| <.`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_LTE, "<="}, {TOKEN_RETURN, "<-"}, {TOKEN_LSHIFT, "<<"},
+		{TOKEN_STDIN_READ, "<|"}, {TOKEN_FILE_READ, "<."},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_DotDisambiguation(t *testing.T) {
+	l := New(`.> .>>`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FILE_WRITE, ".>"}, {TOKEN_FILE_APPEND, ".>>"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
 func TestLexer_ForIn(t *testing.T) {
 	l := New(`for x in items { |> str(x) }`)
 	expected := []struct {

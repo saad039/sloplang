@@ -44,6 +44,10 @@ func (p *Parser) parseStatement() Stmt {
 		return p.parseReturnStmt()
 	case lexer.TOKEN_PIPE_GT:
 		return p.parseStdoutWriteStatement()
+	case lexer.TOKEN_FILE_WRITE:
+		return p.parseFileWriteStmt()
+	case lexer.TOKEN_FILE_APPEND:
+		return p.parseFileAppendStmt()
 	case lexer.TOKEN_IDENT:
 		// Disambiguate: hashmap decl (a{...} = ...), push (a << ...), index-set/key-set (a@... = ...), multi-assign, single assign, or bare expression
 		if p.peekToken().Type == lexer.TOKEN_LBRACE {
@@ -409,6 +413,32 @@ func (p *Parser) parseHashDeclStmt() *HashDeclStmt {
 	return &HashDeclStmt{Name: name, Keys: keys, Value: value}
 }
 
+func (p *Parser) parseFileWriteStmt() *FileWriteStmt {
+	p.advance() // consume .>
+	path := p.parseExpression()
+	if path == nil {
+		return nil
+	}
+	data := p.parseExpression()
+	if data == nil {
+		return nil
+	}
+	return &FileWriteStmt{Path: path, Data: data}
+}
+
+func (p *Parser) parseFileAppendStmt() *FileAppendStmt {
+	p.advance() // consume .>>
+	path := p.parseExpression()
+	if path == nil {
+		return nil
+	}
+	data := p.parseExpression()
+	if data == nil {
+		return nil
+	}
+	return &FileAppendStmt{Path: path, Data: data}
+}
+
 func (p *Parser) parseExpression() Expr {
 	return p.parseOr()
 }
@@ -712,6 +742,16 @@ func (p *Parser) parsePrimary() Expr {
 	case lexer.TOKEN_NULL:
 		p.advance()
 		return &NullLiteral{}
+	case lexer.TOKEN_STDIN_READ:
+		p.advance()
+		return &StdinReadExpr{}
+	case lexer.TOKEN_FILE_READ:
+		p.advance() // consume <.
+		path := p.parseExpression()
+		if path == nil {
+			return nil
+		}
+		return &FileReadExpr{Path: path}
 	default:
 		p.addError("unexpected token %s (%q) in expression at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)
 		return nil

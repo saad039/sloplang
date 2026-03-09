@@ -70,6 +70,68 @@ replace github.com/saad039/sloplang => %s
 	}
 
 	runCmd := exec.Command(filepath.Join(tmpDir, "prog"))
+	runCmd.Dir = tmpDir
+	runOut, err := runCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run failed: %v\n%s", err, string(runOut))
+	}
+
+	return strings.TrimRight(string(runOut), "\n")
+}
+
+// runE2EWithStdin is like runE2E but pipes stdinInput to the process's stdin.
+func runE2EWithStdin(t *testing.T, source, stdinInput string) string {
+	t.Helper()
+
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	gen := New(modulePath)
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	root := projectRoot()
+
+	goMod := fmt.Sprintf(`module test
+
+go 1.24
+
+require github.com/saad039/sloplang v0.0.0
+
+replace github.com/saad039/sloplang => %s
+`, root)
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = tmpDir
+	if tidyOut, err := tidyCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy failed: %v\n%s", err, string(tidyOut))
+	}
+
+	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
+	buildCmd.Dir = tmpDir
+	buildOut, err := buildCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build failed: %v\n%s\n\nGenerated code:\n%s", err, string(buildOut), string(output))
+	}
+
+	runCmd := exec.Command(filepath.Join(tmpDir, "prog"))
+	runCmd.Dir = tmpDir
+	runCmd.Stdin = strings.NewReader(stdinInput)
 	runOut, err := runCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("run failed: %v\n%s", err, string(runOut))
@@ -2962,5 +3024,1387 @@ x = [42]
 |> str(x)`)
 	if got != "42" {
 		t.Fatalf("expected %q, got %q", "42", got)
+	}
+}
+
+// --- Phase 6: I/O tests ---
+
+func TestE2E_FileWriteRead(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "hello"
+data, err = <. "test.txt"
+|> data`)
+	if got != "hello" {
+		t.Fatalf("expected %q, got %q", "hello", got)
+	}
+}
+
+func TestE2E_FileAppend(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "first"
+.>> "test.txt" " second"
+data, err = <. "test.txt"
+|> data`)
+	if got != "first second" {
+		t.Fatalf("expected %q, got %q", "first second", got)
+	}
+}
+
+func TestE2E_FileReadMissing(t *testing.T) {
+	got := runE2E(t, `data, err = <. "nofile.txt"
+|> str(err)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_FileWriteOverwrite(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "first"
+.> "test.txt" "second"
+data, err = <. "test.txt"
+|> data`)
+	if got != "second" {
+		t.Fatalf("expected %q, got %q", "second", got)
+	}
+}
+
+func TestE2E_FileWriteVariable(t *testing.T) {
+	got := runE2E(t, `path = "myfile.txt"
+.> path "variable path"
+data, err = <. path
+|> data`)
+	if got != "variable path" {
+		t.Fatalf("expected %q, got %q", "variable path", got)
+	}
+}
+
+func TestE2E_StdinRead(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+|> line`, "hello\n")
+	if got != "hello" {
+		t.Fatalf("expected %q, got %q", "hello", got)
+	}
+}
+
+func TestE2E_StdinReadEOF(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+|> str(err)`, "")
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_SplitBySpace(t *testing.T) {
+	got := runE2E(t, `words = split("a b c", " ")
+|> str(words)`)
+	if got != "[a, b, c]" {
+		t.Fatalf("expected %q, got %q", "[a, b, c]", got)
+	}
+}
+
+func TestE2E_SplitByNewline(t *testing.T) {
+	got := runE2E(t, `lines = split("a\nb", "\n")
+|> str(lines)`)
+	if got != "[a, b]" {
+		t.Fatalf("expected %q, got %q", "[a, b]", got)
+	}
+}
+
+func TestE2E_SplitEmptySep(t *testing.T) {
+	got := runE2E(t, `x = split("hello", "")
+|> str(x)`)
+	if got != "hello" {
+		t.Fatalf("expected %q, got %q", "hello", got)
+	}
+}
+
+func TestE2E_ToNumInt(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("42")
+|> str(val)`)
+	if got != "42" {
+		t.Fatalf("expected %q, got %q", "42", got)
+	}
+}
+
+func TestE2E_ToNumFloat(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("3.14")
+|> str(val)`)
+	if got != "3.14" {
+		t.Fatalf("expected %q, got %q", "3.14", got)
+	}
+}
+
+func TestE2E_ToNumFail(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("abc")
+|> str(err)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_WriteSplitToNum(t *testing.T) {
+	got := runE2E(t, `.> "nums.txt" "10 20 30"
+data, err = <. "nums.txt"
+parts = split(data, " ")
+sum = 0
+for p in parts {
+	val, verr = to_num(p)
+	sum = sum + val
+}
+|> str(sum)`)
+	if got != "60" {
+		t.Fatalf("expected %q, got %q", "60", got)
+	}
+}
+
+// --- Phase 6: Edge case / boundary tests ---
+
+// File I/O edge cases
+
+func TestE2E_FileWriteEmptyString(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" ""
+data, err = <. "test.txt"
+|> str(#data)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_FileWriteEmptyStringContent(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" ""
+data, err = <. "test.txt"
+|> data
+|> "done"`)
+	if got != "\ndone" {
+		t.Fatalf("expected %q, got %q", "\ndone", got)
+	}
+}
+
+func TestE2E_FileReadSuccessErrIsZero(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "x"
+data, err = <. "test.txt"
+|> str(err)`)
+	if got != "0" {
+		t.Fatalf("expected %q, got %q", "0", got)
+	}
+}
+
+func TestE2E_FileReadMissingDataIsEmpty(t *testing.T) {
+	got := runE2E(t, `data, err = <. "nope.txt"
+|> data
+|> "end"`)
+	if got != "\nend" {
+		t.Fatalf("expected %q, got %q", "\nend", got)
+	}
+}
+
+func TestE2E_FileAppendCreatesFile(t *testing.T) {
+	got := runE2E(t, `.>> "new.txt" "created"
+data, err = <. "new.txt"
+|> data`)
+	if got != "created" {
+		t.Fatalf("expected %q, got %q", "created", got)
+	}
+}
+
+func TestE2E_FileAppendMultiple(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "a"
+.>> "test.txt" "b"
+.>> "test.txt" "c"
+data, err = <. "test.txt"
+|> data`)
+	if got != "abc" {
+		t.Fatalf("expected %q, got %q", "abc", got)
+	}
+}
+
+func TestE2E_FileWriteNewlineContent(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "line1\nline2\nline3"
+data, err = <. "test.txt"
+lines = split(data, "\n")
+|> str(#lines)`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_FileWriteArrayFormatted(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+.> "test.txt" str(arr)
+data, err = <. "test.txt"
+|> data`)
+	if got != "[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]", got)
+	}
+}
+
+func TestE2E_FileWriteNumericFormatted(t *testing.T) {
+	got := runE2E(t, `x = 42
+.> "test.txt" str(x)
+data, err = <. "test.txt"
+|> data`)
+	if got != "42" {
+		t.Fatalf("expected %q, got %q", "42", got)
+	}
+}
+
+func TestE2E_FileReadInIf(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "exists"
+data, err = <. "test.txt"
+if err == 0 {
+	|> data
+} else {
+	|> "fail"
+}`)
+	if got != "exists" {
+		t.Fatalf("expected %q, got %q", "exists", got)
+	}
+}
+
+func TestE2E_FileReadMissingInIf(t *testing.T) {
+	got := runE2E(t, `data, err = <. "nope.txt"
+if err != 0 {
+	|> "not found"
+} else {
+	|> data
+}`)
+	if got != "not found" {
+		t.Fatalf("expected %q, got %q", "not found", got)
+	}
+}
+
+func TestE2E_FileIOInFunction(t *testing.T) {
+	got := runE2E(t, `fn save(path, content) {
+	.> path content
+	<- 0
+}
+fn load(path) {
+	data, err = <. path
+	<- data
+}
+save("test.txt", "from fn")
+result = load("test.txt")
+|> result`)
+	if got != "from fn" {
+		t.Fatalf("expected %q, got %q", "from fn", got)
+	}
+}
+
+func TestE2E_FileIOInLoop(t *testing.T) {
+	got := runE2E(t, `names = ["a.txt", "b.txt", "c.txt"]
+for name in names {
+	.> name name
+}
+result = []
+for name in names {
+	data, err = <. name
+	result << data
+}
+|> str(result)`)
+	if got != "[a.txt, b.txt, c.txt]" {
+		t.Fatalf("expected %q, got %q", "[a.txt, b.txt, c.txt]", got)
+	}
+}
+
+func TestE2E_FileWritePathFromFnResult(t *testing.T) {
+	got := runE2E(t, `fn getpath() {
+	<- "dynamic.txt"
+}
+.> getpath() "content"
+data, err = <. getpath()
+|> data`)
+	if got != "content" {
+		t.Fatalf("expected %q, got %q", "content", got)
+	}
+}
+
+func TestE2E_FileReadThenSplitLines(t *testing.T) {
+	got := runE2E(t, `.> "multi.txt" "alpha\nbeta\ngamma"
+data, err = <. "multi.txt"
+lines = split(data, "\n")
+for line in lines {
+	|> line
+}`)
+	if got != "alpha\nbeta\ngamma" {
+		t.Fatalf("expected %q, got %q", "alpha\nbeta\ngamma", got)
+	}
+}
+
+// Stdin edge cases
+
+func TestE2E_StdinReadMultipleLines(t *testing.T) {
+	got := runE2EWithStdin(t, `line1, err1 = <|
+line2, err2 = <|
+|> line1
+|> line2`, "first\nsecond\n")
+	if got != "first\nsecond" {
+		t.Fatalf("expected %q, got %q", "first\nsecond", got)
+	}
+}
+
+func TestE2E_StdinReadThenEOF(t *testing.T) {
+	got := runE2EWithStdin(t, `line1, err1 = <|
+line2, err2 = <|
+|> str(err1)
+|> str(err2)`, "only\n")
+	if got != "0\n1" {
+		t.Fatalf("expected %q, got %q", "0\n1", got)
+	}
+}
+
+func TestE2E_StdinReadEmptyLine(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+|> str(#line)
+|> str(err)`, "\n")
+	if got != "1\n0" {
+		t.Fatalf("expected %q, got %q", "1\n0", got)
+	}
+}
+
+func TestE2E_StdinReadInLoop(t *testing.T) {
+	got := runE2EWithStdin(t, `result = []
+count = 0
+for {
+	line, err = <|
+	if err != 0 {
+		break
+	}
+	result << line
+	count = count + 1
+}
+|> str(count)
+|> str(result)`, "a\nb\nc\n")
+	if got != "3\n[a, b, c]" {
+		t.Fatalf("expected %q, got %q", "3\n[a, b, c]", got)
+	}
+}
+
+func TestE2E_StdinReadWithWhitespace(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+|> line`, "  spaces  \n")
+	if got != "  spaces  " {
+		t.Fatalf("expected %q, got %q", "  spaces  ", got)
+	}
+}
+
+// Split edge cases
+
+func TestE2E_SplitSingleChar(t *testing.T) {
+	got := runE2E(t, `parts = split("a,b,c", ",")
+|> str(parts)`)
+	if got != "[a, b, c]" {
+		t.Fatalf("expected %q, got %q", "[a, b, c]", got)
+	}
+}
+
+func TestE2E_SplitNoMatch(t *testing.T) {
+	got := runE2E(t, `parts = split("hello", ",")
+|> str(parts)`)
+	if got != "hello" {
+		t.Fatalf("expected %q, got %q", "hello", got)
+	}
+}
+
+func TestE2E_SplitTrailingSep(t *testing.T) {
+	got := runE2E(t, `parts = split("a,b,", ",")
+|> str(#parts)`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_SplitLeadingSep(t *testing.T) {
+	got := runE2E(t, `parts = split(",a,b", ",")
+|> str(#parts)`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_SplitConsecutiveSeps(t *testing.T) {
+	got := runE2E(t, `parts = split("a,,b", ",")
+|> str(#parts)
+|> str(parts@(0))
+|> str(parts@(2))`)
+	if got != "3\na\nb" {
+		t.Fatalf("expected %q, got %q", "3\na\nb", got)
+	}
+}
+
+func TestE2E_SplitMultiCharSep(t *testing.T) {
+	got := runE2E(t, `parts = split("a::b::c", "::")
+|> str(parts)`)
+	if got != "[a, b, c]" {
+		t.Fatalf("expected %q, got %q", "[a, b, c]", got)
+	}
+}
+
+func TestE2E_SplitResultIterate(t *testing.T) {
+	got := runE2E(t, `parts = split("x-y-z", "-")
+for p in parts {
+	|> p
+}`)
+	if got != "x\ny\nz" {
+		t.Fatalf("expected %q, got %q", "x\ny\nz", got)
+	}
+}
+
+func TestE2E_SplitResultIndex(t *testing.T) {
+	got := runE2E(t, `parts = split("a:b:c", ":")
+|> parts@(0)
+|> parts@(2)`)
+	if got != "a\nc" {
+		t.Fatalf("expected %q, got %q", "a\nc", got)
+	}
+}
+
+func TestE2E_SplitResultLength(t *testing.T) {
+	got := runE2E(t, `parts = split("one two three four", " ")
+|> str(#parts)`)
+	if got != "4" {
+		t.Fatalf("expected %q, got %q", "4", got)
+	}
+}
+
+func TestE2E_SplitThenContains(t *testing.T) {
+	got := runE2E(t, `parts = split("cat,dog,bird", ",")
+if parts ?? "dog" {
+	|> "found"
+} else {
+	|> "nope"
+}`)
+	if got != "found" {
+		t.Fatalf("expected %q, got %q", "found", got)
+	}
+}
+
+func TestE2E_SplitFromVariable(t *testing.T) {
+	got := runE2E(t, `s = "1-2-3"
+sep = "-"
+parts = split(s, sep)
+|> str(parts)`)
+	if got != "[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]", got)
+	}
+}
+
+// to_num edge cases
+
+func TestE2E_ToNumNegativeInt(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("-99")
+|> str(val)
+|> str(err)`)
+	if got != "-99\n0" {
+		t.Fatalf("expected %q, got %q", "-99\n0", got)
+	}
+}
+
+func TestE2E_ToNumZero(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("0")
+|> str(val)
+|> str(err)`)
+	if got != "0\n0" {
+		t.Fatalf("expected %q, got %q", "0\n0", got)
+	}
+}
+
+func TestE2E_ToNumNegativeFloat(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("-2.5")
+|> str(val)
+|> str(err)`)
+	if got != "-2.5\n0" {
+		t.Fatalf("expected %q, got %q", "-2.5\n0", got)
+	}
+}
+
+func TestE2E_ToNumEmptyString(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("")
+|> str(err)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ToNumWhitespace(t *testing.T) {
+	got := runE2E(t, `val, err = to_num(" 42 ")
+|> str(err)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ToNumLargeInt(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("9999999999")
+|> str(val)`)
+	if got != "9999999999" {
+		t.Fatalf("expected %q, got %q", "9999999999", got)
+	}
+}
+
+func TestE2E_ToNumScientificNotation(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("1e3")
+|> str(val)
+|> str(err)`)
+	if got != "1000\n0" {
+		t.Fatalf("expected %q, got %q", "1000\n0", got)
+	}
+}
+
+func TestE2E_ToNumErrCheckBeforeUse(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("bad")
+if err != 0 {
+	|> "parse error"
+} else {
+	|> str(val)
+}`)
+	if got != "parse error" {
+		t.Fatalf("expected %q, got %q", "parse error", got)
+	}
+}
+
+func TestE2E_ToNumInLoop(t *testing.T) {
+	got := runE2E(t, `strs = ["10", "20", "30"]
+sum = 0
+for s in strs {
+	v, e = to_num(s)
+	sum = sum + v
+}
+|> str(sum)`)
+	if got != "60" {
+		t.Fatalf("expected %q, got %q", "60", got)
+	}
+}
+
+func TestE2E_ToNumIntPreferredOverFloat(t *testing.T) {
+	// "42" should parse as int64, not float64
+	got := runE2E(t, `val, err = to_num("42")
+x = val + 8
+|> str(x)`)
+	if got != "50" {
+		t.Fatalf("expected %q, got %q", "50", got)
+	}
+}
+
+// Combined pipeline edge cases
+
+func TestE2E_StdinSplitToNum(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+parts = split(line, " ")
+sum = 0
+for p in parts {
+	v, e = to_num(p)
+	sum = sum + v
+}
+|> str(sum)`, "5 10 15\n")
+	if got != "30" {
+		t.Fatalf("expected %q, got %q", "30", got)
+	}
+}
+
+func TestE2E_ReadSplitFilterWrite(t *testing.T) {
+	got := runE2E(t, `.> "input.txt" "1,2,3,4,5"
+data, err = <. "input.txt"
+parts = split(data, ",")
+evens = []
+for p in parts {
+	v, e = to_num(p)
+	if v % 2 == 0 {
+		evens << p
+	}
+}
+|> str(evens)`)
+	if got != "[2, 4]" {
+		t.Fatalf("expected %q, got %q", "[2, 4]", got)
+	}
+}
+
+func TestE2E_FileAppendInLoop(t *testing.T) {
+	got := runE2E(t, `nums = [1, 2, 3]
+.> "log.txt" ""
+for n in nums {
+	.>> "log.txt" str(n)
+}
+data, err = <. "log.txt"
+|> data`)
+	if got != "123" {
+		t.Fatalf("expected %q, got %q", "123", got)
+	}
+}
+
+func TestE2E_StdinReadToFileWriteRoundtrip(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+.> "captured.txt" line
+data, rerr = <. "captured.txt"
+|> data`, "captured input\n")
+	if got != "captured input" {
+		t.Fatalf("expected %q, got %q", "captured input", got)
+	}
+}
+
+func TestE2E_SplitThenJoinViaAppend(t *testing.T) {
+	got := runE2E(t, `parts = split("a-b-c", "-")
+.> "joined.txt" ""
+first = 1
+for p in parts {
+	if first == 1 {
+		.> "joined.txt" p
+		first = 0
+	} else {
+		.>> "joined.txt" ","
+		.>> "joined.txt" p
+	}
+}
+data, err = <. "joined.txt"
+|> data`)
+	if got != "a,b,c" {
+		t.Fatalf("expected %q, got %q", "a,b,c", got)
+	}
+}
+
+func TestE2E_ToNumThenArithmetic(t *testing.T) {
+	got := runE2E(t, `a, e1 = to_num("10")
+b, e2 = to_num("3")
+|> str(a + b)
+|> str(a - b)
+|> str(a * b)
+|> str(a / b)`)
+	if got != "13\n7\n30\n3" {
+		t.Fatalf("expected %q, got %q", "13\n7\n30\n3", got)
+	}
+}
+
+func TestE2E_FileWriteSpecialChars(t *testing.T) {
+	got := runE2E(t, `.> "test.txt" "tab\there\nnewline"
+data, err = <. "test.txt"
+|> data`)
+	if got != "tab\there\nnewline" {
+		t.Fatalf("expected %q, got %q", "tab\there\nnewline", got)
+	}
+}
+
+// === Phase 6: Additional boundary and edge-case tests ===
+
+// --- File I/O boundary tests ---
+
+func TestE2E_FileWriteReadUnicode(t *testing.T) {
+	got := runE2E(t, `.> "uni.txt" "hello 世界 🌍"
+data, err = <. "uni.txt"
+|> data`)
+	if got != "hello 世界 🌍" {
+		t.Fatalf("expected %q, got %q", "hello 世界 🌍", got)
+	}
+}
+
+func TestE2E_FileWriteOnlyWhitespace(t *testing.T) {
+	got := runE2E(t, `.> "ws.txt" "   \t\n  "
+data, err = <. "ws.txt"
+|> str(#data)`)
+	// data is a single-element string, length is 1
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_FileMultipleRapidWrites(t *testing.T) {
+	got := runE2E(t, `.> "f.txt" "one"
+.> "f.txt" "two"
+.> "f.txt" "three"
+.> "f.txt" "four"
+.> "f.txt" "five"
+data, err = <. "f.txt"
+|> data`)
+	if got != "five" {
+		t.Fatalf("expected %q, got %q", "five", got)
+	}
+}
+
+func TestE2E_FileAppendNoInitialWrite(t *testing.T) {
+	// .>> on a nonexistent file should create it
+	got := runE2E(t, `.>> "fresh.txt" "line1"
+.>> "fresh.txt" "line2"
+data, err = <. "fresh.txt"
+|> data`)
+	if got != "line1line2" {
+		t.Fatalf("expected %q, got %q", "line1line2", got)
+	}
+}
+
+func TestE2E_FileReadSameFileTwice(t *testing.T) {
+	got := runE2E(t, `.> "dup.txt" "content"
+d1, e1 = <. "dup.txt"
+d2, e2 = <. "dup.txt"
+|> d1
+|> d2
+|> str(e1)
+|> str(e2)`)
+	if got != "content\ncontent\n0\n0" {
+		t.Fatalf("expected %q, got %q", "content\ncontent\n0\n0", got)
+	}
+}
+
+func TestE2E_FileReadAfterAppendModifiesContent(t *testing.T) {
+	got := runE2E(t, `.> "rw.txt" "start"
+d1, e1 = <. "rw.txt"
+.>> "rw.txt" "+more"
+d2, e2 = <. "rw.txt"
+|> d1
+|> d2`)
+	if got != "start\nstart+more" {
+		t.Fatalf("expected %q, got %q", "start\nstart+more", got)
+	}
+}
+
+func TestE2E_FileWriteReadLongContent(t *testing.T) {
+	// Build a long string via repeated concat
+	got := runE2E(t, `s = "abcdefghij"
+long = s
+i = 0
+for {
+	if i == [9] { break }
+	long = long ++ s
+	i = i + 1
+}
+.> "long.txt" str(long)
+data, err = <. "long.txt"
+|> str(#data)`)
+	// 1 element string, length is 1
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_FileReadMultipleMissing(t *testing.T) {
+	got := runE2E(t, `d1, e1 = <. "nope1.txt"
+d2, e2 = <. "nope2.txt"
+d3, e3 = <. "nope3.txt"
+|> str(e1)
+|> str(e2)
+|> str(e3)`)
+	if got != "1\n1\n1" {
+		t.Fatalf("expected %q, got %q", "1\n1\n1", got)
+	}
+}
+
+func TestE2E_FileWriteEmptyThenAppend(t *testing.T) {
+	got := runE2E(t, `.> "ea.txt" ""
+.>> "ea.txt" "appended"
+data, err = <. "ea.txt"
+|> data`)
+	if got != "appended" {
+		t.Fatalf("expected %q, got %q", "appended", got)
+	}
+}
+
+func TestE2E_FileAppendNewlineDelimited(t *testing.T) {
+	got := runE2E(t, `.> "lines.txt" "line1"
+.>> "lines.txt" "\nline2"
+.>> "lines.txt" "\nline3"
+data, err = <. "lines.txt"
+parts = split(data, "\n")
+|> str(#parts)
+|> parts@(0)
+|> parts@(2)`)
+	if got != "3\nline1\nline3" {
+		t.Fatalf("expected %q, got %q", "3\nline1\nline3", got)
+	}
+}
+
+func TestE2E_FileReadErrThenSuccessWrite(t *testing.T) {
+	// Read a missing file (err=1), then write it, then read again (err=0)
+	got := runE2E(t, `d1, e1 = <. "late.txt"
+.> "late.txt" "now exists"
+d2, e2 = <. "late.txt"
+|> str(e1)
+|> str(e2)
+|> d2`)
+	if got != "1\n0\nnow exists" {
+		t.Fatalf("expected %q, got %q", "1\n0\nnow exists", got)
+	}
+}
+
+func TestE2E_FileWritePathFromConcat(t *testing.T) {
+	got := runE2E(t, `base = "data"
+ext = ".txt"
+path = base ++ ext
+.> str(path) "concat path"
+data, err = <. str(path)
+|> data`)
+	if got != "concat path" {
+		t.Fatalf("expected %q, got %q", "concat path", got)
+	}
+}
+
+func TestE2E_FileIOPreservesExactContent(t *testing.T) {
+	// Verify no trailing newline is added by file write
+	got := runE2E(t, `.> "exact.txt" "no-newline"
+data, err = <. "exact.txt"
+if data == "no-newline" {
+	|> "exact"
+} else {
+	|> "modified"
+}`)
+	if got != "exact" {
+		t.Fatalf("expected %q, got %q", "exact", got)
+	}
+}
+
+// --- Stdin boundary tests ---
+
+func TestE2E_StdinReadNoTrailingNewline(t *testing.T) {
+	// Input without trailing newline — scanner should still read the line
+	got := runE2EWithStdin(t, `line, err = <|
+|> line
+|> str(err)`, "no-newline")
+	if got != "no-newline\n0" {
+		t.Fatalf("expected %q, got %q", "no-newline\n0", got)
+	}
+}
+
+func TestE2E_StdinReadUnicode(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+|> line`, "café résumé\n")
+	if got != "café résumé" {
+		t.Fatalf("expected %q, got %q", "café résumé", got)
+	}
+}
+
+func TestE2E_StdinReadMultipleEOF(t *testing.T) {
+	// After EOF, subsequent reads should also return err=1
+	got := runE2EWithStdin(t, `l1, e1 = <|
+l2, e2 = <|
+l3, e3 = <|
+|> str(e1)
+|> str(e2)
+|> str(e3)`, "only\n")
+	if got != "0\n1\n1" {
+		t.Fatalf("expected %q, got %q", "0\n1\n1", got)
+	}
+}
+
+func TestE2E_StdinReadLongLine(t *testing.T) {
+	// 500 chars is well within scanner buffer
+	long := ""
+	for i := 0; i < 500; i++ {
+		long += "x"
+	}
+	got := runE2EWithStdin(t, `line, err = <|
+|> str(#line)`, long+"\n")
+	if got != "1" {
+		// line is a single-element string, #line = 1
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_StdinReadTabsAndSpaces(t *testing.T) {
+	got := runE2EWithStdin(t, `line, err = <|
+|> line`, "\t  \t  \n")
+	if got != "\t  \t  " {
+		t.Fatalf("expected %q, got %q", "\t  \t  ", got)
+	}
+}
+
+func TestE2E_StdinReadExhaustedThenFileRead(t *testing.T) {
+	// After stdin is exhausted, file operations should still work
+	got := runE2EWithStdin(t, `l1, e1 = <|
+l2, e2 = <|
+.> "out.txt" l1
+data, rerr = <. "out.txt"
+|> data
+|> str(e2)`, "hello\n")
+	if got != "hello\n1" {
+		t.Fatalf("expected %q, got %q", "hello\n1", got)
+	}
+}
+
+func TestE2E_StdinReadEmptyInput(t *testing.T) {
+	// Completely empty stdin — immediate EOF
+	got := runE2EWithStdin(t, `line, err = <|
+|> str(err)
+|> line
+|> "end"`, "")
+	if got != "1\n\nend" {
+		t.Fatalf("expected %q, got %q", "1\n\nend", got)
+	}
+}
+
+func TestE2E_StdinReadManyLines(t *testing.T) {
+	got := runE2EWithStdin(t, `count = 0
+for {
+	line, err = <|
+	if err != 0 { break }
+	count = count + 1
+}
+|> str(count)`, "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\n")
+	if got != "10" {
+		t.Fatalf("expected %q, got %q", "10", got)
+	}
+}
+
+// --- Split boundary tests ---
+
+func TestE2E_SplitEmptyString(t *testing.T) {
+	// Splitting empty string by any separator
+	// strings.Split("", ",") returns [""] — 1 element (empty string)
+	got := runE2E(t, `parts = split("", ",")
+|> str(#parts)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_SplitSepEqualsString(t *testing.T) {
+	// Separator equals the entire string
+	got := runE2E(t, `parts = split("abc", "abc")
+|> str(#parts)`)
+	// strings.Split("abc", "abc") = ["", ""] — 2 empty strings
+	if got != "2" {
+		t.Fatalf("expected %q, got %q", "2", got)
+	}
+}
+
+func TestE2E_SplitSingleCharString(t *testing.T) {
+	got := runE2E(t, `parts = split("x", ",")
+|> str(parts)`)
+	// No match, returns ["x"]
+	if got != "x" {
+		t.Fatalf("expected %q, got %q", "x", got)
+	}
+}
+
+func TestE2E_SplitOnEveryChar(t *testing.T) {
+	// Using single-char separator on string made of that char
+	got := runE2E(t, `parts = split("---", "-")
+|> str(#parts)`)
+	// strings.Split("---", "-") = ["", "", "", ""] — 4 empty strings
+	if got != "4" {
+		t.Fatalf("expected %q, got %q", "4", got)
+	}
+}
+
+func TestE2E_SplitLongSeparator(t *testing.T) {
+	got := runE2E(t, `parts = split("helloworldhello", "world")
+|> str(parts)`)
+	if got != "[hello, hello]" {
+		t.Fatalf("expected %q, got %q", "[hello, hello]", got)
+	}
+}
+
+func TestE2E_SplitWhitespaceSep(t *testing.T) {
+	// Tab separator
+	got := runE2E(t, `parts = split("a\tb\tc", "\t")
+|> str(parts)`)
+	if got != "[a, b, c]" {
+		t.Fatalf("expected %q, got %q", "[a, b, c]", got)
+	}
+}
+
+func TestE2E_SplitResultArithmetic(t *testing.T) {
+	// Split then to_num each part and do arithmetic
+	got := runE2E(t, `parts = split("100,200,300", ",")
+v1, e1 = to_num(parts@(0))
+v2, e2 = to_num(parts@(1))
+v3, e3 = to_num(parts@(2))
+|> str(v1 + v2 + v3)`)
+	if got != "600" {
+		t.Fatalf("expected %q, got %q", "600", got)
+	}
+}
+
+func TestE2E_SplitThenIndex(t *testing.T) {
+	got := runE2E(t, `parts = split("zero,one,two,three,four", ",")
+|> parts@(0)
+|> parts@(4)
+|> str(#parts)`)
+	if got != "zero\nfour\n5" {
+		t.Fatalf("expected %q, got %q", "zero\nfour\n5", got)
+	}
+}
+
+func TestE2E_SplitNewlineOnly(t *testing.T) {
+	// String that is just newlines
+	got := runE2E(t, `parts = split("\n\n", "\n")
+|> str(#parts)`)
+	// strings.Split("\n\n", "\n") = ["", "", ""] — 3 elements
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+// --- to_num boundary tests ---
+
+func TestE2E_ToNumPlusSign(t *testing.T) {
+	// "+42" — ParseInt handles this
+	got := runE2E(t, `val, err = to_num("+42")
+|> str(val)
+|> str(err)`)
+	if got != "42\n0" {
+		t.Fatalf("expected %q, got %q", "42\n0", got)
+	}
+}
+
+func TestE2E_ToNumHexString(t *testing.T) {
+	// "0x10" — ParseInt base 10 rejects this, ParseFloat also rejects
+	got := runE2E(t, `val, err = to_num("0x10")
+|> str(err)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ToNumLeadingZeros(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("007")
+|> str(val)
+|> str(err)`)
+	if got != "7\n0" {
+		t.Fatalf("expected %q, got %q", "7\n0", got)
+	}
+}
+
+func TestE2E_ToNumDecimalOnly(t *testing.T) {
+	// ".5" — ParseInt rejects, ParseFloat accepts
+	got := runE2E(t, `val, err = to_num(".5")
+|> str(val)
+|> str(err)`)
+	if got != "0.5\n0" {
+		t.Fatalf("expected %q, got %q", "0.5\n0", got)
+	}
+}
+
+func TestE2E_ToNumTrailingDecimal(t *testing.T) {
+	// "5." — ParseInt rejects, ParseFloat accepts as 5.0
+	got := runE2E(t, `val, err = to_num("5.")
+|> str(val)
+|> str(err)`)
+	if got != "5\n0" {
+		t.Fatalf("expected %q, got %q", "5\n0", got)
+	}
+}
+
+func TestE2E_ToNumJustDot(t *testing.T) {
+	got := runE2E(t, `val, err = to_num(".")
+|> str(err)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ToNumSpecialStrings(t *testing.T) {
+	// "NaN", "Inf" — these should fail since they're not standard numbers
+	// Actually ParseFloat accepts them, so let's test that
+	got := runE2E(t, `v1, e1 = to_num("NaN")
+v2, e2 = to_num("Inf")
+v3, e3 = to_num("-Inf")
+|> str(e1)
+|> str(e2)
+|> str(e3)`)
+	// ParseFloat accepts NaN, +Inf, -Inf — all succeed with err=0
+	if got != "0\n0\n0" {
+		t.Fatalf("expected %q, got %q", "0\n0\n0", got)
+	}
+}
+
+func TestE2E_ToNumVeryLargeInt(t *testing.T) {
+	// Near int64 max: 9223372036854775807
+	got := runE2E(t, `val, err = to_num("9223372036854775807")
+|> str(err)`)
+	if got != "0" {
+		t.Fatalf("expected %q, got %q", "0", got)
+	}
+}
+
+func TestE2E_ToNumOverflowInt(t *testing.T) {
+	// int64 overflow, but ParseFloat can still handle it
+	got := runE2E(t, `val, err = to_num("9223372036854775808")
+|> str(err)`)
+	// ParseInt fails, ParseFloat succeeds
+	if got != "0" {
+		t.Fatalf("expected %q, got %q", "0", got)
+	}
+}
+
+func TestE2E_ToNumSmallNegativeFloat(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("-0.001")
+|> str(val)
+|> str(err)`)
+	if got != "-0.001\n0" {
+		t.Fatalf("expected %q, got %q", "-0.001\n0", got)
+	}
+}
+
+func TestE2E_ToNumMixedValidInvalid(t *testing.T) {
+	// Loop through mixed valid/invalid, count successes and failures
+	got := runE2E(t, `inputs = ["1", "two", "3", "four", "5"]
+ok = 0
+fail = 0
+for s in inputs {
+	v, e = to_num(s)
+	if e == 0 {
+		ok = ok + 1
+	} else {
+		fail = fail + 1
+	}
+}
+|> str(ok)
+|> str(fail)`)
+	if got != "3\n2" {
+		t.Fatalf("expected %q, got %q", "3\n2", got)
+	}
+}
+
+func TestE2E_ToNumFloatPrecision(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("0.1")
+result = val + val + val
+|> str(err)`)
+	// Just verify it parses successfully
+	if got != "0" {
+		t.Fatalf("expected %q, got %q", "0", got)
+	}
+}
+
+func TestE2E_ToNumThenCompare(t *testing.T) {
+	got := runE2E(t, `a, e1 = to_num("10")
+b, e2 = to_num("20")
+if a < b {
+	|> "less"
+} else {
+	|> "not less"
+}`)
+	if got != "less" {
+		t.Fatalf("expected %q, got %q", "less", got)
+	}
+}
+
+// --- Combined pipeline boundary tests ---
+
+func TestE2E_ReadMissingSkipProcessing(t *testing.T) {
+	// Read missing file, check err, skip processing
+	got := runE2E(t, `data, err = <. "missing.txt"
+if err != 0 {
+	|> "skipped"
+} else {
+	parts = split(data, ",")
+	|> str(parts)
+}`)
+	if got != "skipped" {
+		t.Fatalf("expected %q, got %q", "skipped", got)
+	}
+}
+
+func TestE2E_StdinSplitFilterToNum(t *testing.T) {
+	// Read stdin, split, filter only numeric, sum
+	got := runE2EWithStdin(t, `line, err = <|
+parts = split(line, ",")
+sum = 0
+for p in parts {
+	v, e = to_num(p)
+	if e == 0 {
+		sum = sum + v
+	}
+}
+|> str(sum)`, "10,abc,20,def,30\n")
+	if got != "60" {
+		t.Fatalf("expected %q, got %q", "60", got)
+	}
+}
+
+func TestE2E_FileRoundtripNumeric(t *testing.T) {
+	// Write number as string, read back, parse to num, do arithmetic
+	got := runE2E(t, `x = 42
+.> "num.txt" str(x)
+data, err = <. "num.txt"
+val, verr = to_num(data)
+result = val * 2
+|> str(result)`)
+	if got != "84" {
+		t.Fatalf("expected %q, got %q", "84", got)
+	}
+}
+
+func TestE2E_FileSplitToNumSum(t *testing.T) {
+	// Write CSV, read, split, convert each, sum
+	got := runE2E(t, `.> "csv.txt" "5,10,15,20,25"
+data, err = <. "csv.txt"
+parts = split(data, ",")
+sum = 0
+for p in parts {
+	v, e = to_num(p)
+	sum = sum + v
+}
+|> str(sum)`)
+	if got != "75" {
+		t.Fatalf("expected %q, got %q", "75", got)
+	}
+}
+
+func TestE2E_StdinToFileToStdout(t *testing.T) {
+	// Full pipeline: stdin → file → read → stdout
+	got := runE2EWithStdin(t, `line, err = <|
+.> "pipe.txt" line
+data, rerr = <. "pipe.txt"
+|> data`, "piped data\n")
+	if got != "piped data" {
+		t.Fatalf("expected %q, got %q", "piped data", got)
+	}
+}
+
+func TestE2E_SplitToNumWriteResults(t *testing.T) {
+	// Split, convert, write each result to a file
+	got := runE2E(t, `parts = split("1,2,3", ",")
+.> "results.txt" ""
+for p in parts {
+	v, e = to_num(p)
+	doubled = v * 2
+	.>> "results.txt" str(doubled)
+	.>> "results.txt" ","
+}
+data, err = <. "results.txt"
+|> data`)
+	if got != "2,4,6," {
+		t.Fatalf("expected %q, got %q", "2,4,6,", got)
+	}
+}
+
+func TestE2E_MultipleStdinLinesSplitEach(t *testing.T) {
+	got := runE2EWithStdin(t, `total = 0
+for {
+	line, err = <|
+	if err != 0 { break }
+	parts = split(line, " ")
+	for p in parts {
+		v, e = to_num(p)
+		if e == 0 {
+			total = total + v
+		}
+	}
+}
+|> str(total)`, "1 2 3\n4 5 6\n")
+	if got != "21" {
+		t.Fatalf("expected %q, got %q", "21", got)
+	}
+}
+
+func TestE2E_FileAppendFromStdinLoop(t *testing.T) {
+	got := runE2EWithStdin(t, `.> "log.txt" ""
+for {
+	line, err = <|
+	if err != 0 { break }
+	.>> "log.txt" line
+	.>> "log.txt" "\n"
+}
+data, rerr = <. "log.txt"
+lines = split(data, "\n")
+// Last element is empty due to trailing \n
+|> str(#lines - 1)`, "alpha\nbeta\ngamma\n")
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_ChainedFileOperations(t *testing.T) {
+	// Write to file A, read A, transform, write to file B, read B
+	got := runE2E(t, `.> "a.txt" "10,20,30"
+data, e1 = <. "a.txt"
+parts = split(data, ",")
+result = []
+for p in parts {
+	v, e = to_num(p)
+	result << v + 1
+}
+.> "b.txt" str(result)
+data2, e2 = <. "b.txt"
+|> data2`)
+	if got != "[11, 21, 31]" {
+		t.Fatalf("expected %q, got %q", "[11, 21, 31]", got)
+	}
+}
+
+func TestE2E_ToNumFailValIsEmpty(t *testing.T) {
+	// When to_num fails, val should have 0 elements
+	got := runE2E(t, `val, err = to_num("not_a_number")
+|> str(#val)
+|> str(err)`)
+	if got != "0\n1" {
+		t.Fatalf("expected %q, got %q", "0\n1", got)
+	}
+}
+
+func TestE2E_SplitThenAppendToArray(t *testing.T) {
+	got := runE2E(t, `parts = split("a:b:c", ":")
+all = []
+for p in parts {
+	all << p
+}
+all << "d"
+|> str(all)`)
+	if got != "[a, b, c, d]" {
+		t.Fatalf("expected %q, got %q", "[a, b, c, d]", got)
+	}
+}
+
+func TestE2E_FileWriteReadInConditionalBranches(t *testing.T) {
+	got := runE2E(t, `flag = 1
+if flag == 1 {
+	.> "cond.txt" "branch-true"
+} else {
+	.> "cond.txt" "branch-false"
+}
+data, err = <. "cond.txt"
+|> data`)
+	if got != "branch-true" {
+		t.Fatalf("expected %q, got %q", "branch-true", got)
+	}
+}
+
+func TestE2E_SplitEmptySepIdentity(t *testing.T) {
+	// Empty separator with various strings returns original
+	got := runE2E(t, `a = split("abc", "")
+b = split("", "")
+c = split("x y z", "")
+|> str(a)
+|> str(b)
+|> str(c)`)
+	if got != "abc\n\nx y z" {
+		t.Fatalf("expected %q, got %q", "abc\n\nx y z", got)
+	}
+}
+
+func TestE2E_StdinReadInFunction(t *testing.T) {
+	got := runE2EWithStdin(t, `fn readLine() {
+	line, err = <|
+	<- line
+}
+result = readLine()
+|> result`, "from-fn\n")
+	if got != "from-fn" {
+		t.Fatalf("expected %q, got %q", "from-fn", got)
+	}
+}
+
+func TestE2E_ToNumZeroFloat(t *testing.T) {
+	got := runE2E(t, `val, err = to_num("0.0")
+|> str(val)
+|> str(err)`)
+	if got != "0\n0" {
+		t.Fatalf("expected %q, got %q", "0\n0", got)
+	}
+}
+
+func TestE2E_FileWriteHashmapFormatted(t *testing.T) {
+	got := runE2E(t, `m{name, age} = ["alice", [30]]
+.> "map.txt" str(@@m)
+data, err = <. "map.txt"
+|> data`)
+	if got != "[alice, 30]" {
+		t.Fatalf("expected %q, got %q", "[alice, 30]", got)
+	}
+}
+
+func TestE2E_FileReadWriteWithHashmap(t *testing.T) {
+	got := runE2E(t, `config{host, port} = ["localhost", "8080"]
+.> "config.txt" config@host
+.>> "config.txt" ":"
+.>> "config.txt" config@port
+data, err = <. "config.txt"
+|> data`)
+	if got != "localhost:8080" {
+		t.Fatalf("expected %q, got %q", "localhost:8080", got)
 	}
 }

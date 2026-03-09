@@ -171,6 +171,16 @@ func (l *Lexer) NextToken() Token {
 			tok.Literal = "<<"
 			l.readChar()
 			l.readChar()
+		} else if l.peekChar() == '|' {
+			tok.Type = TOKEN_STDIN_READ
+			tok.Literal = "<|"
+			l.readChar()
+			l.readChar()
+		} else if l.peekChar() == '.' {
+			tok.Type = TOKEN_FILE_READ
+			tok.Literal = "<."
+			l.readChar()
+			l.readChar()
 		} else {
 			tok.Type = TOKEN_LT
 			tok.Literal = "<"
@@ -276,6 +286,24 @@ func (l *Lexer) NextToken() Token {
 			tok.Literal = "::"
 			l.readChar()
 			l.readChar()
+		} else {
+			tok.Type = TOKEN_ILLEGAL
+			tok.Literal = string(l.ch)
+			l.readChar()
+		}
+
+	case l.ch == '.':
+		if l.peekChar() == '>' {
+			l.readChar() // consume .
+			l.readChar() // consume >
+			if l.ch == '>' {
+				tok.Type = TOKEN_FILE_APPEND
+				tok.Literal = ".>>"
+				l.readChar()
+			} else {
+				tok.Type = TOKEN_FILE_WRITE
+				tok.Literal = ".>"
+			}
 		} else {
 			tok.Type = TOKEN_ILLEGAL
 			tok.Literal = string(l.ch)

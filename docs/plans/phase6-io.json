@@ -1,0 +1,88 @@
+[
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes <|, <., .>, .>> with correct disambiguation",
+    "steps": [
+      "Add TOKEN_STDIN_READ, TOKEN_FILE_READ, TOKEN_FILE_WRITE, TOKEN_FILE_APPEND to token types",
+      "Tokenize <| as TOKEN_STDIN_READ",
+      "Tokenize <. as TOKEN_FILE_READ",
+      "Tokenize .> as TOKEN_FILE_WRITE",
+      "Tokenize .>> as TOKEN_FILE_APPEND",
+      "Disambiguate .>> vs .>",
+      "Disambiguate <. vs <- vs <= vs <<"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces correct AST for stdin read, file read, file write, file append",
+    "steps": [
+      "Parse line, err = <| into MultiAssignStmt with StdinReadExpr",
+      "Parse data, err = <. \"path\" into MultiAssignStmt with FileReadExpr",
+      "Parse data, err = <. expr into MultiAssignStmt with FileReadExpr",
+      "Parse .> \"path\" data into FileWriteStmt",
+      "Parse .> expr expr into FileWriteStmt",
+      "Parse .>> \"path\" data into FileAppendStmt"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Runtime I/O functions: StdinRead, FileRead, FileWrite, FileAppend, Split, ToNum in io.go",
+    "steps": [
+      "StdinRead reads one line via bufio.Scanner, returns (line, [0]) on success",
+      "StdinRead returns (\"\", [1]) on EOF or error",
+      "FileRead reads entire file, returns (content, [0]) on success",
+      "FileRead returns (\"\", [1]) on missing file",
+      "FileWrite writes data to file with 0644 perms, panics on error",
+      "FileAppend appends data to file, panics on error",
+      "Split splits string by separator, returns SlopValue array of strings",
+      "Split with empty separator returns original string as-is",
+      "Split panics if args are not single-element strings",
+      "ToNum parses int64 then float64, returns (val, [0]) on success",
+      "ToNum returns ([], [1]) on parse failure"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen lowers I/O AST nodes to sloprt calls, adds split/to_num to builtin dispatch",
+    "steps": [
+      "Lower StdinReadExpr to sloprt.StdinRead()",
+      "Lower FileReadExpr to sloprt.FileRead(path)",
+      "Lower FileWriteStmt to sloprt.FileWrite(path, data)",
+      "Lower FileAppendStmt to sloprt.FileAppend(path, data)",
+      "Add split to builtin map → sloprt.Split",
+      "Add to_num to dual-return builtin handling → sloprt.ToNum",
+      "MultiAssignStmt recognizes to_num as dual-return builtin"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "E2E tests for file I/O, stdin, split, to_num covering happy paths, errors, and edge cases",
+    "steps": [
+      "File write then read: .> creates file, <. reads it back",
+      "File append: .>> appends to existing file",
+      "File read missing: <. returns err [1]",
+      "File write overwrites existing content",
+      "Split by space: split(\"a b c\", \" \") returns [a, b, c]",
+      "Split by newline: split(\"a\\nb\", \"\\n\") returns [a, b]",
+      "Split empty separator: split(\"hello\", \"\") returns [hello]",
+      "to_num int: to_num(\"42\") returns ([42], [0])",
+      "to_num float: to_num(\"3.14\") returns ([3.14], [0])",
+      "to_num failure: to_num(\"abc\") returns ([], [1])",
+      "Combined: write file, read, split, to_num pipeline",
+      "File I/O with variables as path and data"
+    ],
+    "passes": true
+  },
+  {
+    "category": "examples",
+    "description": "Example file fileio.slop demonstrating all Phase 6 features",
+    "steps": [
+      "fileio.slop: file write, read, append, split, to_num, error handling"
+    ],
+    "passes": true
+  }
+]
