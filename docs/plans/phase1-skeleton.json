@@ -1,0 +1,91 @@
+[
+  {
+    "category": "scaffolding",
+    "description": "Go module init and project directory structure created",
+    "steps": [
+      "Run go mod init github.com/saad039/sloplang",
+      "Create all package directories: cmd/slop, pkg/lexer, pkg/parser, pkg/codegen, pkg/runtime, examples",
+      "Verify go build ./... succeeds with empty packages"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "SlopValue struct with NewSlopValue, IsTruthy, and StdoutWrite",
+    "steps": [
+      "Define SlopValue struct with Elements []any and Keys []string",
+      "Implement NewSlopValue(...any) constructor",
+      "Implement IsTruthy() returning true for non-empty Elements",
+      "Implement StdoutWrite that prints strings raw and arrays formatted",
+      "Unit tests pass for all constructor variants, IsTruthy, and StdoutWrite"
+    ],
+    "passes": true
+  },
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes all Phase 1 constructs correctly",
+    "steps": [
+      "Define TokenType enum and Token struct",
+      "Implement scanner with NextToken() and Tokenize()",
+      "Tokenize number literals: int, uint (u suffix), float (decimal point)",
+      "Tokenize string literals with escape handling",
+      "Tokenize operators: =, |>, [, ], comma",
+      "Skip // comments and whitespace with line tracking",
+      "Tokenize identifiers and keywords (true, false)",
+      "Unit tests pass for assignments, stdout writes, number types, comments, multiline"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces correct AST for assignments and stdout writes",
+    "steps": [
+      "Define AST node interfaces and types (Program, AssignStmt, StdoutWriteStmt, ArrayLiteral, NumberLiteral, StringLiteral, Identifier)",
+      "Implement recursive descent parser with Parse() entry point",
+      "Parse assignment: IDENT ASSIGN expr -> AssignStmt",
+      "Parse stdout write: PIPE_GT expr -> StdoutWriteStmt",
+      "Parse array literal: LBRACKET (expr COMMA...)* RBRACKET -> ArrayLiteral",
+      "Parse number, string, and identifier expressions",
+      "Unit tests pass for all statement/expression types, empty arrays, mixed arrays, error cases"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen produces valid Go source via go/ast lowering",
+    "steps": [
+      "Implement Generator with Generate(*Program) returning formatted Go source",
+      "Build go/ast.File with package main, sloprt import, and main() func",
+      "Lower AssignStmt to := with sloprt.NewSlopValue call",
+      "Lower StdoutWriteStmt to sloprt.StdoutWrite() call",
+      "Lower number/string/array literals to correct Go AST nodes",
+      "Format output with go/format.Node",
+      "Unit tests pass verifying generated Go compiles and has correct structure"
+    ],
+    "passes": true
+  },
+  {
+    "category": "cli",
+    "description": "CLI reads .slop file and writes transpiled .go output",
+    "steps": [
+      "Implement main() in cmd/slop/main.go",
+      "Read input file, run lexer -> parser -> codegen pipeline",
+      "Write output .go file alongside input",
+      "Handle and report errors at each stage"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "hello.slop transpiles, compiles, and runs producing correct stdout",
+    "steps": [
+      "Create examples/hello.slop with x = [1, 2, 3] and |> \"hello world\"",
+      "E2E test lexes, parses, generates Go source",
+      "E2E test writes generated code to temp dir with go.mod replace directive",
+      "E2E test runs go build on generated code successfully",
+      "E2E test runs compiled binary and captures stdout",
+      "E2E test asserts stdout equals 'hello world' with trailing newline"
+    ],
+    "passes": true
+  }
+]
