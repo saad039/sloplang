@@ -84,7 +84,14 @@
       "E2E test writes generated code to temp dir with go.mod replace directive",
       "E2E test runs go build on generated code successfully",
       "E2E test runs compiled binary and captures stdout",
-      "E2E test asserts stdout equals 'hello world' with trailing newline"
+      "E2E test asserts stdout equals 'hello world' with trailing newline",
+      "E2E test: unused variable compiles without error",
+      "E2E test: multiple unused variables compile without error",
+      "E2E test: mixed used and unused variables compile and run correctly",
+      "E2E test: empty array prints []",
+      "E2E test: mixed types [1, 3.14, \"hi\"] prints correctly",
+      "E2E test: string-only program with multiple |> statements",
+      "E2E test: uint literal [42u] prints correctly"
     ],
     "passes": true
   }
