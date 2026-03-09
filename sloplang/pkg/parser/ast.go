@@ -1,0 +1,89 @@
+package parser
+
+// Node is the base interface for all AST nodes.
+type Node interface {
+	TokenLiteral() string
+}
+
+// Stmt is a statement node.
+type Stmt interface {
+	Node
+	stmtNode()
+}
+
+// Expr is an expression node.
+type Expr interface {
+	Node
+	exprNode()
+}
+
+// Program is the root AST node containing all statements.
+type Program struct {
+	Statements []Stmt
+}
+
+func (p *Program) TokenLiteral() string {
+	if len(p.Statements) > 0 {
+		return p.Statements[0].TokenLiteral()
+	}
+	return ""
+}
+
+// AssignStmt represents: name = value
+type AssignStmt struct {
+	Name  string
+	Value Expr
+}
+
+func (as *AssignStmt) stmtNode()            {}
+func (as *AssignStmt) TokenLiteral() string { return as.Name }
+
+// StdoutWriteStmt represents: |> value
+type StdoutWriteStmt struct {
+	Value Expr
+}
+
+func (sw *StdoutWriteStmt) stmtNode()            {}
+func (sw *StdoutWriteStmt) TokenLiteral() string { return "|>" }
+
+// ArrayLiteral represents: [elem1, elem2, ...]
+type ArrayLiteral struct {
+	Elements []Expr
+}
+
+func (al *ArrayLiteral) exprNode()            {}
+func (al *ArrayLiteral) TokenLiteral() string { return "[" }
+
+// NumberType distinguishes between int, uint, and float literals.
+type NumberType int
+
+const (
+	NumInt NumberType = iota
+	NumUint
+	NumFloat
+)
+
+// NumberLiteral represents a numeric value: 42, 42u, 3.14
+type NumberLiteral struct {
+	Value   string
+	NumType NumberType
+}
+
+func (nl *NumberLiteral) exprNode()            {}
+func (nl *NumberLiteral) TokenLiteral() string { return nl.Value }
+
+// StringLiteral represents: "hello world"
+type StringLiteral struct {
+	Value string
+}
+
+func (sl *StringLiteral) exprNode()            {}
+func (sl *StringLiteral) TokenLiteral() string { return sl.Value }
+
+// Identifier represents a variable reference.
+type Identifier struct {
+	Name string
+}
+
+func (id *Identifier) exprNode()            {}
+func (id *Identifier) TokenLiteral() string { return id.Name }
