@@ -8,9 +8,10 @@ import (
 
 // Parser produces an AST from a token slice.
 type Parser struct {
-	tokens []lexer.Token
-	pos    int
-	errors []string
+	tokens     []lexer.Token
+	pos        int
+	errors     []string
+	arrayDepth int // tracks nesting depth inside [] brackets
 }
 
 // New creates a new Parser for the given tokens.
@@ -56,36 +57,41 @@ func (p *Parser) parseStatement() Stmt {
 		if p.peekToken().Type == lexer.TOKEN_LSHIFT {
 			return p.parsePushStmt()
 		}
+		if p.peekToken().Type == lexer.TOKEN_DOLLAR {
+			// Dynamic access set: ident $ ident =
+			saved := p.save()
+			savedErrors := len(p.errors)
+			name := p.curToken().Literal
+			p.advance() // consume ident
+			p.advance() // consume $
+			if p.curToken().Type == lexer.TOKEN_IDENT {
+				keyVarName := p.curToken().Literal
+				p.advance() // consume key ident
+				if p.curToken().Type == lexer.TOKEN_ASSIGN {
+					p.advance() // consume =
+					val := p.parseExpression()
+					if val != nil {
+						return &DynAccessSetStmt{
+							Object: &Identifier{Name: name},
+							KeyVar: &Identifier{Name: keyVarName},
+							Value:  val,
+						}
+					}
+				}
+			}
+			// Not a dyn-access-set; restore
+			p.restore(saved)
+			p.errors = p.errors[:savedErrors]
+		}
 		if p.peekToken().Type == lexer.TOKEN_AT {
-			// Could be key-set (a@key = val), dyn-key-set (a@$var = val), index-set (a@i = val), or expression
+			// Could be key-set (a@key = val), index-set (a@i = val), or expression
 			saved := p.save()
 			savedErrors := len(p.errors)
 			name := p.curToken().Literal
 			p.advance() // consume ident
 			p.advance() // consume @
 
-			// Check for dynamic key set: ident @ $ ident =
-			if p.curToken().Type == lexer.TOKEN_DOLLAR {
-				p.advance() // consume $
-				if p.curToken().Type == lexer.TOKEN_IDENT {
-					keyVarName := p.curToken().Literal
-					p.advance() // consume key ident
-					if p.curToken().Type == lexer.TOKEN_ASSIGN {
-						p.advance() // consume =
-						val := p.parseExpression()
-						if val != nil {
-							return &DynKeySetStmt{
-								Object: &Identifier{Name: name},
-								KeyVar: &Identifier{Name: keyVarName},
-								Value:  val,
-							}
-						}
-					}
-				}
-				// Not a dyn-key-set; restore
-				p.restore(saved)
-				p.errors = p.errors[:savedErrors]
-			} else if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type != lexer.TOKEN_LPAREN {
+			if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type != lexer.TOKEN_LPAREN {
 				// Check for static key set: ident @ ident =
 				keyName := p.curToken().Literal
 				p.advance() // consume key ident
@@ -106,7 +112,6 @@ func (p *Parser) parseStatement() Stmt {
 			}
 
 			// If we haven't restored yet, we're still advanced past ident and @
-			// Need to check if we're already restored or not
 			if p.pos != saved {
 				// We're still past @; try index-set: ident @ expr =
 				idx := p.parsePostfixPrimary()
@@ -138,7 +143,7 @@ func (p *Parser) parseStatement() Stmt {
 			return nil
 		}
 		return &ExprStmt{Expr: expr}
-	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE, lexer.TOKEN_DOUBLE_HASH, lexer.TOKEN_DOUBLE_AT, lexer.TOKEN_NULL:
+	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE, lexer.TOKEN_DOUBLE_HASH, lexer.TOKEN_DOUBLE_AT:
 		// Prefix operators and literals that start expression statements
 		expr := p.parseExpression()
 		if expr == nil {
@@ -638,15 +643,18 @@ func (p *Parser) parsePostfix() Expr {
 		return nil
 	}
 	for {
-		if p.curToken().Type == lexer.TOKEN_AT {
+		if p.curToken().Type == lexer.TOKEN_DOLLAR {
+			p.advance() // consume $
+			if p.curToken().Type != lexer.TOKEN_IDENT {
+				p.addError("expected identifier after '$', got %s at line %d", p.curToken().Type, p.curToken().Line)
+				return nil
+			}
+			keyVarName := p.curToken().Literal
+			p.advance() // consume ident
+			expr = &DynAccessExpr{Object: expr, KeyVar: &Identifier{Name: keyVarName}}
+		} else if p.curToken().Type == lexer.TOKEN_AT {
 			p.advance() // consume @
-			// Check for dynamic key access: @$ident
-			if p.curToken().Type == lexer.TOKEN_DOLLAR && p.peekToken().Type == lexer.TOKEN_IDENT {
-				p.advance() // consume $
-				keyVarName := p.curToken().Literal
-				p.advance() // consume ident
-				expr = &DynKeyAccessExpr{Object: expr, KeyVar: &Identifier{Name: keyVarName}}
-			} else if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type != lexer.TOKEN_LPAREN {
+			if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type != lexer.TOKEN_LPAREN {
 				// Static key access: @ident (but not @ident( which is a function call)
 				keyName := p.curToken().Literal
 				p.advance() // consume ident
@@ -734,12 +742,27 @@ func (p *Parser) parsePrimary() Expr {
 	case lexer.TOKEN_STRING:
 		return p.parseStringLiteral()
 	case lexer.TOKEN_INT, lexer.TOKEN_UINT, lexer.TOKEN_FLOAT:
+		if p.arrayDepth == 0 {
+			p.addError("bare number literals are not allowed outside []; use [%s] instead at line %d", p.curToken().Literal, p.curToken().Line)
+			p.advance()
+			return nil
+		}
 		return p.parseNumberLiteral()
 	case lexer.TOKEN_IDENT:
 		return p.parseIdentifier()
 	case lexer.TOKEN_TRUE, lexer.TOKEN_FALSE:
+		if p.arrayDepth == 0 {
+			p.addError("bare boolean literals are not allowed outside []; use [1] for true and [] for false at line %d", p.curToken().Line)
+			p.advance()
+			return nil
+		}
 		return p.parseBoolLiteral()
 	case lexer.TOKEN_NULL:
+		if p.arrayDepth == 0 {
+			p.addError("bare null is not allowed outside []; use [null] instead at line %d", p.curToken().Line)
+			p.advance()
+			return nil
+		}
 		p.advance()
 		return &NullLiteral{}
 	case lexer.TOKEN_STDIN_READ:
@@ -760,16 +783,19 @@ func (p *Parser) parsePrimary() Expr {
 
 func (p *Parser) parseArrayLiteral() *ArrayLiteral {
 	p.advance() // consume '['
+	p.arrayDepth++
 
 	al := &ArrayLiteral{}
 
 	if p.curToken().Type == lexer.TOKEN_RBRACKET {
+		p.arrayDepth--
 		p.advance() // consume ']'
 		return al
 	}
 
 	elem := p.parseExpression()
 	if elem == nil {
+		p.arrayDepth--
 		return nil
 	}
 	al.Elements = append(al.Elements, elem)
@@ -778,6 +804,7 @@ func (p *Parser) parseArrayLiteral() *ArrayLiteral {
 		p.advance() // consume ','
 		elem = p.parseExpression()
 		if elem == nil {
+			p.arrayDepth--
 			return nil
 		}
 		al.Elements = append(al.Elements, elem)
@@ -785,8 +812,10 @@ func (p *Parser) parseArrayLiteral() *ArrayLiteral {
 
 	if p.curToken().Type != lexer.TOKEN_RBRACKET {
 		p.addError("expected ']', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		p.arrayDepth--
 		return nil
 	}
+	p.arrayDepth--
 	p.advance() // consume ']'
 
 	return al

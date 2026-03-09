@@ -452,13 +452,13 @@ func TestCodegen_KeyAccessExpr(t *testing.T) {
 	}
 }
 
-func TestCodegen_DynKeyAccessExpr(t *testing.T) {
-	out, err := generate("person{name} = [\"bob\"]\nk = \"name\"\n|> person@$k")
+func TestCodegen_DynAccessExpr(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nk = \"name\"\n|> person$k")
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.IndexKey(") {
-		t.Fatalf("expected sloprt.IndexKey, got:\n%s", out)
+	if !strings.Contains(out, "sloprt.DynAccess(") {
+		t.Fatalf("expected sloprt.DynAccess, got:\n%s", out)
 	}
 }
 
@@ -472,13 +472,13 @@ func TestCodegen_KeySetStmt(t *testing.T) {
 	}
 }
 
-func TestCodegen_DynKeySetStmt(t *testing.T) {
-	out, err := generate("person{name} = [\"bob\"]\nk = \"name\"\nperson@$k = [\"alice\"]")
+func TestCodegen_DynAccessSetStmt(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nk = \"name\"\nperson$k = [\"alice\"]")
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.IndexKeySet(") {
-		t.Fatalf("expected sloprt.IndexKeySet, got:\n%s", out)
+	if !strings.Contains(out, "sloprt.DynAccessSet(") {
+		t.Fatalf("expected sloprt.DynAccessSet, got:\n%s", out)
 	}
 }
 
@@ -507,11 +507,11 @@ func TestCodegen_MapValuesExpr(t *testing.T) {
 // ==========================================
 
 func TestCodegen_NullLiteral(t *testing.T) {
-	out, err := generate(`x = null`)
+	out, err := generate(`x = [null]`)
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.NewSlopValue(sloprt.SlopNull{})") {
-		t.Fatalf("expected sloprt.NewSlopValue(sloprt.SlopNull{}), got:\n%s", out)
+	if !strings.Contains(out, "sloprt.SlopNull{}") {
+		t.Fatalf("expected sloprt.SlopNull{}, got:\n%s", out)
 	}
 }

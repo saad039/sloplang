@@ -67,9 +67,9 @@ func TestNewSlopValue_Empty(t *testing.T) {
 }
 
 func TestIsTruthy_NonEmpty(t *testing.T) {
-	sv := NewSlopValue(int64(0))
+	sv := NewSlopValue(int64(1))
 	if !sv.IsTruthy() {
-		t.Fatal("[0] should be truthy")
+		t.Fatal("[1] should be truthy")
 	}
 }
 

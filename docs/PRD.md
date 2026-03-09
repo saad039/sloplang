@@ -53,24 +53,27 @@ counts{} = []
 
 ### Null
 
-`null` represents an absent/placeholder value. It is strict:
-- `null == null` → `[1]` (truthy), `null != [5]` → `[1]`
+`null` represents an absent/placeholder value. It is strict and **must always be inside brackets**:
+- `[null] == [null]` → `[1]` (truthy), `[null] != [5]` → `[1]`
 - Arithmetic, negation, truthiness checks, logical ops, ordered comparisons, and for-in iteration on null all **panic**
-- `str(null)` → `"null"`, `|> null` prints `null`
+- `str([null])` → `"null"`, `|> [null]` prints `null`
 - `#[null, null]` → `[2]` — length counts null elements normally
-- `[1, null] ?? null` → `[1]` — contains finds null
+- `[1, null] ?? [null]` → `[1]` — contains finds null
 
 ```
-x = null              // forward declaration
+x = [null]            // forward declaration
 x = [null, null]      // array with null elements
 ```
 
-### Booleans
+### Booleans (Strict)
 
-- `[]` (empty array) is **falsy**
-- Everything else is **truthy** (including `[0]`)
-- `null` is **neither truthy nor falsy** — using it in `if` panics
-- `true` = `[1]`, `false` = `[]`
+- Only `[1]` is **truthy**
+- Only `[]` (empty array) is **falsy**
+- `[0]` is **not a valid boolean** — panics with "use [] for false"
+- Multi-element arrays in boolean context **panic**
+- Strings, floats, null in boolean context **panic**
+- `true` and `false` keywords are only allowed inside `[]`: `[true]` = `[1]`, `[false]` = `[]`
+- Bare `true`/`false` outside brackets is a parse error
 
 ### Comments
 
@@ -124,8 +127,8 @@ Operate on truthiness (`[]` = false, anything else = true).
 | Op | Name | Usage |
 |----|------|-------|
 | `#` | Length (prefix) | `#arr` -> `[3]` |
-| `@` | Index | `arr@0` (numeric), `map@name` (literal key) |
-| `@$` | Dynamic key | `map@$var` (evaluates variable to get key) |
+| `@` | Index / Key | `arr@0` (numeric index), `map@name` (literal string key) |
+| `$` | Dynamic access | `map$var` (dispatches: int→index, string→key lookup) |
 | `<<` | Push | `arr << [5]` |
 | `>>` | Pop (prefix) | `x = >>arr` (removes + returns last element) |
 | `~@` | Remove at index | `x = arr ~@ 2` (removes + returns element at index 2) |
@@ -170,14 +173,15 @@ person{name, age} = ["bob", [30]]
 n = person@name         // "bob"
 a = person@age          // [30]
 
-// Dynamic key access — $ evaluates the variable
+// Dynamic access — $ dispatches on variable type
 which = "name"
-n = person@$which       // "bob"
+n = person$which        // "bob" (string key → key lookup)
 
 // Numeric index access
 arr = [10, 20, 30]
 x = arr@0               // [10]
-x = arr@2               // [30]
+i = [2]
+x = arr$i               // [30] (int key → index access)
 
 // Set existing key
 person@age = [31]
@@ -267,15 +271,16 @@ fn main() {
         words = split(line, " ")
         for w in words {
             if counts ?? w {
-                counts@$w = counts@$w + [1]
+                counts$w = counts$w + [1]
             } else {
-                counts@$w = [1]
+                counts$w = [1]
             }
         }
     }
 
     for k in ##counts {
-        |> k ++ ": " ++ str(counts@$k)
+        |> k
+        |> str(counts$k)
     }
 }
 ```

@@ -21,15 +21,15 @@ vs = @@person
 
 // Dynamic key access ($)
 which = "name"
-|> person@$which
+|> person$which
 
 // Dynamic key set
 field = "phone"
-person@$field = "555-1234"
+person$field = "555-1234"
 |> person@phone
 
 // Numeric index on hashmap (ordered)
-|> person@(0)
+|> person@0
 
 // Single-key hashmap
 box{item} = ["widget"]

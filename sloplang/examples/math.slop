@@ -45,12 +45,10 @@ ua = [10u] + [5u]
 |> str([] || [1])
 |> str(![])
 
-// true and false keywords
-|> str(true)
-|> str(false)
-if true {
-    |> "true is truthy"
+// Boolean expressions
+if [1] {
+    |> "truthy branch"
 }
-if !false {
-    |> "false is falsy"
+if ![] {
+    |> "falsy branch"
 }

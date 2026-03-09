@@ -667,30 +667,54 @@ func TestUnpackTwo_MixedTypes(t *testing.T) {
 	}
 }
 
-// --- IsTruthy edge cases ---
+// --- IsTruthy: strict boolean semantics ---
 
 func TestIsTruthy_EmptyArray(t *testing.T) {
 	if NewSlopValue().IsTruthy() {
-		t.Fatal("empty SlopValue should be falsy")
+		t.Fatal("[] should be falsy")
 	}
 }
 
-func TestIsTruthy_Zero(t *testing.T) {
-	if !NewSlopValue(int64(0)).IsTruthy() {
-		t.Fatal("[0] should be truthy")
+func TestIsTruthy_One(t *testing.T) {
+	if !NewSlopValue(int64(1)).IsTruthy() {
+		t.Fatal("[1] should be truthy")
 	}
 }
 
-func TestIsTruthy_EmptyString(t *testing.T) {
-	if !NewSlopValue("").IsTruthy() {
-		t.Fatal("[\"\"] should be truthy (non-empty array)")
-	}
+func TestIsTruthy_Zero_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("[0] should panic in boolean context")
+		}
+	}()
+	NewSlopValue(int64(0)).IsTruthy()
 }
 
-func TestIsTruthy_MultiElement(t *testing.T) {
-	if !NewSlopValue(int64(1), int64(2)).IsTruthy() {
-		t.Fatal("[1, 2] should be truthy")
-	}
+func TestIsTruthy_MultiElement_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("[1, 2] should panic in boolean context")
+		}
+	}()
+	NewSlopValue(int64(1), int64(2)).IsTruthy()
+}
+
+func TestIsTruthy_String_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("[\"hello\"] should panic in boolean context")
+		}
+	}()
+	NewSlopValue("hello").IsTruthy()
+}
+
+func TestIsTruthy_EmptyString_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("[\"\"] should panic in boolean context")
+		}
+	}()
+	NewSlopValue("").IsTruthy()
 }
 
 // --- FormatValue / Str edge cases ---
@@ -1202,36 +1226,6 @@ func TestIndexKeyStr_NotFound(t *testing.T) {
 	IndexKeyStr(m, "missing")
 }
 
-// --- IndexKey tests ---
-
-func TestIndexKey_Basic(t *testing.T) {
-	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
-	result := IndexKey(m, NewSlopValue("name"))
-	if result.Elements[0].(string) != "bob" {
-		t.Fatalf("expected 'bob', got %v", result.Elements[0])
-	}
-}
-
-func TestIndexKey_NonStringPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on non-string key")
-		}
-	}()
-	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
-	IndexKey(m, NewSlopValue(int64(1)))
-}
-
-func TestIndexKey_MultiElementPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on multi-element key")
-		}
-	}()
-	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
-	IndexKey(m, NewSlopValue("a", "b"))
-}
-
 // --- IndexKeySetStr tests ---
 
 func TestIndexKeySetStr_Update(t *testing.T) {
@@ -1260,30 +1254,6 @@ func TestIndexKeySetStr_AddNew(t *testing.T) {
 	if m.Elements[1].(*SlopValue) != newVal {
 		t.Fatalf("expected new value at index 1")
 	}
-}
-
-// --- IndexKeySet tests ---
-
-func TestIndexKeySet_Basic(t *testing.T) {
-	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
-	newVal := NewSlopValue("alice")
-	result := IndexKeySet(m, NewSlopValue("name"), newVal)
-	if result != m {
-		t.Fatal("expected same pointer returned")
-	}
-	if m.Elements[0].(*SlopValue) != newVal {
-		t.Fatalf("expected updated value")
-	}
-}
-
-func TestIndexKeySet_NonStringPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on non-string key")
-		}
-	}()
-	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
-	IndexKeySet(m, NewSlopValue(int64(1)), NewSlopValue("alice"))
 }
 
 // --- MapKeys tests ---
@@ -1496,4 +1466,80 @@ func TestIterate_ArrayWithNullElement(t *testing.T) {
 	if _, ok := items[1].Elements[0].(SlopNull); !ok {
 		t.Fatalf("expected SlopNull at index 1, got %T", items[1].Elements[0])
 	}
+}
+
+// ==========================================
+// DynAccess / DynAccessSet Tests
+// ==========================================
+
+func TestDynAccess_IntKey(t *testing.T) {
+	arr := NewSlopValue(int64(10), int64(20), int64(30))
+	idx := NewSlopValue(int64(1))
+	result := DynAccess(arr, idx)
+	if result.Elements[0] != int64(20) {
+		t.Fatalf("expected 20, got %v", result.Elements[0])
+	}
+}
+
+func TestDynAccess_StringKey(t *testing.T) {
+	sv := MapFromKeysValues([]string{"name", "age"}, NewSlopValue("bob", int64(30)))
+	key := NewSlopValue("name")
+	result := DynAccess(sv, key)
+	if result.Elements[0] != "bob" {
+		t.Fatalf("expected bob, got %v", result.Elements[0])
+	}
+}
+
+func TestDynAccess_MultiElementPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element key")
+		}
+	}()
+	arr := NewSlopValue(int64(10), int64(20))
+	DynAccess(arr, NewSlopValue(int64(1), int64(2)))
+}
+
+func TestDynAccess_FloatPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on float key")
+		}
+	}()
+	arr := NewSlopValue(int64(10), int64(20))
+	DynAccess(arr, NewSlopValue(float64(1.0)))
+}
+
+func TestDynAccessSet_IntKey(t *testing.T) {
+	arr := NewSlopValue(int64(10), int64(20), int64(30))
+	idx := NewSlopValue(int64(1))
+	val := NewSlopValue(int64(99))
+	DynAccessSet(arr, idx, val)
+	nested, ok := arr.Elements[1].(*SlopValue)
+	if !ok {
+		t.Fatalf("expected *SlopValue at index 1, got %T", arr.Elements[1])
+	}
+	if nested.Elements[0] != int64(99) {
+		t.Fatalf("expected 99, got %v", nested.Elements[0])
+	}
+}
+
+func TestDynAccessSet_StringKey(t *testing.T) {
+	sv := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	key := NewSlopValue("age")
+	val := NewSlopValue(int64(30))
+	DynAccessSet(sv, key, val)
+	if len(sv.Keys) != 2 || sv.Keys[1] != "age" {
+		t.Fatalf("expected key 'age' added, got keys %v", sv.Keys)
+	}
+}
+
+func TestDynAccessSet_MultiElementPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element key")
+		}
+	}()
+	arr := NewSlopValue(int64(10))
+	DynAccessSet(arr, NewSlopValue(int64(0), int64(1)), NewSlopValue(int64(99)))
 }

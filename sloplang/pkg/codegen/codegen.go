@@ -146,9 +146,9 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return []ast.Stmt{
 			&ast.ExprStmt{X: callSloprt("IndexKeySetStr", g.lowerExpr(s.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(s.Key)}, g.lowerExpr(s.Value))},
 		}
-	case *parser.DynKeySetStmt:
+	case *parser.DynAccessSetStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("IndexKeySet", g.lowerExpr(s.Object), g.lowerExpr(s.KeyVar), g.lowerExpr(s.Value))},
+			&ast.ExprStmt{X: callSloprt("DynAccessSet", g.lowerExpr(s.Object), g.lowerExpr(s.KeyVar), g.lowerExpr(s.Value))},
 		}
 	case *parser.FileWriteStmt:
 		return []ast.Stmt{
@@ -358,8 +358,8 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		return callSloprt("Index", g.lowerExpr(e.Object), g.lowerExpr(e.Index))
 	case *parser.KeyAccessExpr:
 		return callSloprt("IndexKeyStr", g.lowerExpr(e.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(e.Key)})
-	case *parser.DynKeyAccessExpr:
-		return callSloprt("IndexKey", g.lowerExpr(e.Object), g.lowerExpr(e.KeyVar))
+	case *parser.DynAccessExpr:
+		return callSloprt("DynAccess", g.lowerExpr(e.Object), g.lowerExpr(e.KeyVar))
 	case *parser.PopExpr:
 		return callSloprt("Pop", g.lowerExpr(e.Object))
 	case *parser.SliceExpr:

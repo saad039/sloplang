@@ -246,14 +246,14 @@ type KeyAccessExpr struct {
 func (ka *KeyAccessExpr) exprNode()            {}
 func (ka *KeyAccessExpr) TokenLiteral() string { return "@" }
 
-// DynKeyAccessExpr represents: object@$var (dynamic key access)
-type DynKeyAccessExpr struct {
+// DynAccessExpr represents: object$var (dynamic access, dispatches on key type)
+type DynAccessExpr struct {
 	Object Expr
 	KeyVar Expr
 }
 
-func (dk *DynKeyAccessExpr) exprNode()            {}
-func (dk *DynKeyAccessExpr) TokenLiteral() string { return "@$" }
+func (dk *DynAccessExpr) exprNode()            {}
+func (dk *DynAccessExpr) TokenLiteral() string { return "$" }
 
 // HashDeclStmt represents: name{key1, key2} = value
 type HashDeclStmt struct {
@@ -275,15 +275,15 @@ type KeySetStmt struct {
 func (ks *KeySetStmt) stmtNode()            {}
 func (ks *KeySetStmt) TokenLiteral() string { return "@=" }
 
-// DynKeySetStmt represents: object@$var = value (dynamic key set)
-type DynKeySetStmt struct {
+// DynAccessSetStmt represents: object$var = value (dynamic access set, dispatches on key type)
+type DynAccessSetStmt struct {
 	Object Expr
 	KeyVar Expr
 	Value  Expr
 }
 
-func (ds *DynKeySetStmt) stmtNode()            {}
-func (ds *DynKeySetStmt) TokenLiteral() string { return "@$=" }
+func (ds *DynAccessSetStmt) stmtNode()            {}
+func (ds *DynAccessSetStmt) TokenLiteral() string { return "$=" }
 
 // StdinReadExpr represents: <| (reads one line from stdin)
 type StdinReadExpr struct{}

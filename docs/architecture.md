@@ -50,7 +50,7 @@ type SlopValue struct {
 }
 ```
 
-- `[]` (empty Elements) is falsy; everything else is truthy; `SlopNull` panics on truthiness check
+- Strict booleans: only `[1]` is truthy, only `[]` is falsy; `[0]`, multi-element arrays, strings, and `SlopNull` all panic on truthiness check
 - `NewSlopValue(elems ...any)` constructs values
 - `FormatValue` renders: single-element → raw value (e.g. `7`), multi-element → `[1, 2, 3]`, `SlopNull` → `null`
 - `SlopNull struct{}` — sentinel type for null values. Panics on arithmetic, truthiness, ordered comparisons, iteration. Supports `==`/`!=` and formatting.
@@ -72,9 +72,9 @@ Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithm
 
 Two interfaces: `Stmt` (statements) and `Expr` (expressions).
 
-**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynKeySetStmt, FileWriteStmt, FileAppendStmt
+**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynAccessSetStmt, FileWriteStmt, FileAppendStmt
 
-**Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, NullLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr, KeyAccessExpr, DynKeyAccessExpr, StdinReadExpr, FileReadExpr
+**Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, NullLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr, KeyAccessExpr, DynAccessExpr, StdinReadExpr, FileReadExpr
 
 ## Lexer (`pkg/lexer/lexer.go`)
 
@@ -100,7 +100,7 @@ Recursive descent with Pratt-style precedence for expressions.
 6. `**` (Power, right-associative)
 7. Unary: `-`, `!`, `#`, `~`, `>>`, `##`, `@@` (prefix)
 8. Call: `name(args...)`
-9. Postfix: `@` (index / key access), `::` (slice)
+9. Postfix: `$` (dynamic access), `@` (index / key access), `::` (slice)
 10. Primary: literals, identifiers, `(expr)`
 
 ### Statement dispatch
@@ -116,20 +116,23 @@ Recursive descent with Pratt-style precedence for expressions.
   - `,` → multi-assign
   - `=` → assign
   - `<<` → push statement
-  - `@` → lookahead for index-set / key-set / dyn-key-set vs expression
+  - `$` → lookahead for dyn-access-set (`ident$var = val`)
+  - `@` → lookahead for index-set / key-set vs expression
   - `{` after ident → hashmap declaration (`name{k1, k2} = [v1, v2]`)
   - else → expression statement
 
 ### Lookahead for index-set and key-set
 
-Uses `save()`/`restore()` to tentatively parse `ident@...`. If followed by `=`, commits as `IndexSetStmt`, `KeySetStmt`, or `DynKeySetStmt` depending on the `@` target. Otherwise backtracks and parses as expression.
+Uses `save()`/`restore()` to tentatively parse `ident$...` or `ident@...`. If followed by `=`, commits as `DynAccessSetStmt`, `IndexSetStmt`, or `KeySetStmt`. Otherwise backtracks and parses as expression.
 
-### Postfix `@` dispatch (tri-modal)
+### Postfix operators: `$` and `@`
 
-The `@` operator in postfix position dispatches three ways:
-- `map@$var` → `DynKeyAccessExpr` (dynamic key via variable)
+Two postfix operators for access:
+- `map$var` → `DynAccessExpr` (dynamic access: dispatches on key type — int→index, string→key)
 - `map@name` (bare identifier) → `KeyAccessExpr` (literal string key)
-- `arr@(expr)` (parenthesized expression) → `IndexExpr` (numeric index)
+- `arr@0` (number literal) → `IndexExpr` (numeric index)
+
+Bare numbers, booleans, and null are rejected outside `[]` brackets. The parser tracks `arrayDepth` — these tokens are only allowed inside array literals.
 
 ## Codegen (`pkg/codegen/codegen.go`)
 
@@ -160,7 +163,7 @@ func main() {
 - **Binary op map:** Maps sloplang operators to runtime function names (e.g., `"+"` → `"Add"`, `"++"` → `"Concat"`)
 - **Unary op dispatch:** `-` → `Negate`, `!` → `Not`, `#` → `Length`, `~` → `Unique`, `##` → `MapKeys`, `@@` → `MapValues`
 - **Hashmap declaration:** `HashDeclStmt` lowers to `sloprt.MapFromKeysValues` with a `[]string` composite literal for keys
-- **Key access/set:** `KeyAccessExpr`/`KeySetStmt` lower to `sloprt.IndexKeyStr`/`IndexKeySetStr`; `DynKeyAccessExpr`/`DynKeySetStmt` lower to `sloprt.IndexKey`/`IndexKeySet`
+- **Key access/set:** `KeyAccessExpr`/`KeySetStmt` lower to `sloprt.IndexKeyStr`/`IndexKeySetStr`; `DynAccessExpr`/`DynAccessSetStmt` lower to `sloprt.DynAccess`/`DynAccessSet` (type-dispatching runtime functions)
 - **Null literal:** `NullLiteral` lowers to `sloprt.NewSlopValue(sloprt.SlopNull{})`
 
 ## Runtime (`pkg/runtime/ops.go`)
@@ -190,6 +193,12 @@ All operations are functions that take/return `*SlopValue`:
 | `Remove(sv, val)` | No | Returns new array without first occurrence |
 | `Contains(sv, val)` | No | Returns `[1]` or `[]` |
 | `Unique(sv)` | No | Returns deduplicated array |
+
+### Dynamic access (type-dispatching)
+| Function | Description |
+|----------|-------------|
+| `DynAccess(sv, key)` | If key is int64 → `Index`, if string → `IndexKeyStr` |
+| `DynAccessSet(sv, key, val)` | If key is int64 → `IndexSet`, if string → `IndexKeySetStr` |
 
 ### Hashmap operations
 | Function | Mutates? | Description |

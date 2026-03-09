@@ -30,8 +30,9 @@
 
 - **Postfix operators (`@`, `::`) need a separate parsing level.** They bind tighter than binary operators but follow primary/call expressions. Insert a `parsePostfix()` layer between `parseUnary()` and `parseCall()` that loops over `@` (index) and `::` (slice).
 - **Statement-level lookahead for index-set (`arr@i = val`).** Use `save()`/`restore()` to tentatively parse `ident@expr`, then check for `=`. If not found, backtrack and parse as a normal expression.
-- **Adding `@ident` as hashmap key access breaks existing `@variable` numeric indexing.** When Phase 5 hashmaps made `obj@ident` mean "string key access", existing code using `arr@idx` (where `idx` is a numeric index variable) broke. The fix: variable-based numeric indexing must use parentheses `arr@(idx)`. This required adding `TOKEN_LPAREN` handling to `parsePostfixPrimary()` and updating E2E tests that used the old bare-ident syntax.
-- **Hashmap statement-level lookahead must check three forms in order.** When parsing `ident@...`, check: (1) `@$ident =` for DynKeySetStmt, (2) `@ident =` for KeySetStmt, (3) `@expr =` for IndexSetStmt. Each failed check must restore. Use `p.pos != saved` to detect whether a prior branch already restored.
+- **`$var` replaces both `@$var` and `@(expr)`.** The `$` postfix operator does type-based dispatch at runtime: int64 key → array index, string key → hashmap key lookup. This unified syntax means `arr$i` works for both numeric and string variable access. Literal numeric indices still use `@`: `arr@0`. Literal string keys still use `@`: `map@name`.
+- **Statement-level lookahead must check `$` before `@`.** When parsing `ident...`, check `$` first for `DynAccessSetStmt`, then `@` for `KeySetStmt`/`IndexSetStmt`. Each failed check must restore.
+- **`arrayDepth` counter tracks bracket nesting.** Numbers, booleans, and null are only allowed in `parsePrimary()` when `arrayDepth > 0`. The counter is incremented when entering `parseArrayLiteral()` and decremented on exit (including error paths).
 
 ## Runtime
 
@@ -48,3 +49,12 @@
 - **`++` is array Concat, NOT string concatenation.** `"prefix: " ++ str(x)` produces a 2-element array `["prefix: ", "5"]` which formats as `[prefix: , 5]`, not `"prefix: 5"`. To build human-readable output, use separate `|>` calls instead.
 - **User-defined functions returning `[result, errcode]` work via `UnpackTwo`.** The `isDualReturn()` check only applies to builtins (`StdinRead`, `FileRead`, `to_num`). User functions return a single `*SlopValue` containing two elements, which `UnpackTwo` destructures correctly.
 - **Roadmap expected output for `str()` on single-element values uses brackets but actual output doesn't.** `str([5])` outputs `5`, not `[5]`. This is the `FormatValue` single-element behavior documented in Phase 2 patterns.
+
+## Syntax Strictness (Bracket-Wrapping Refactor)
+
+- **Bare numbers outside `[]` are rejected.** `x = 0` must be `x = [0]`. This applies everywhere: assignments, arithmetic operands (`count + [1]`), comparisons (`err != [0]`), return values (`<- [0]`), and modulo (`v % [2] == [0]`).
+- **Bare `null` outside `[]` is rejected.** `x = null` must be `x = [null]`. Same for `|> [null]`, comparisons (`[null] == [null]`), contains (`?? [null]`), arithmetic (`[null] + [1]`), negate (`-[null]`), conditionals (`if [null]`), not (`![null]`), comparisons (`[null] > [1]`), and iteration (`for x in [null]`).
+- **Bare `true`/`false` are rejected.** Use `[1]` for true and `[]` for false. `if true` becomes `if [1]`, `if false` becomes `if []`.
+- **`[0]` panics in boolean context.** `IsTruthy()` only accepts `[1]` (truthy) and `[]` (falsy). Tests that previously checked `![0]` output must become `runE2EExpectPanic` tests.
+- **Strings panic in boolean context.** `IsTruthy()` rejects single-element strings — tests using `if "hello"` must become panic tests.
+- **When refactoring tests for stricter syntax, search for ALL bare number patterns.** A partial fix (only the tests explicitly listed) will miss dozens of other tests using bare numbers in arithmetic, comparisons, and assignments. Run the full test suite after fixing the obvious ones.

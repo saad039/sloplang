@@ -173,24 +173,22 @@ func TestParser_MultipleStatements(t *testing.T) {
 	}
 }
 
-func TestParser_BoolTrue(t *testing.T) {
-	prog, errs := parse(`x = true`)
-	if len(errs) > 0 {
-		t.Fatalf("unexpected errors: %v", errs)
-	}
-
-	assign := prog.Statements[0].(*AssignStmt)
-	arr, ok := assign.Value.(*ArrayLiteral)
-	if !ok {
-		t.Fatalf("expected ArrayLiteral (true -> [1]), got %T", assign.Value)
-	}
-	if len(arr.Elements) != 1 {
-		t.Fatalf("true should be [1], got %d elements", len(arr.Elements))
+func TestParser_RejectBareTrue(t *testing.T) {
+	_, errs := parse(`x = true`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for bare true")
 	}
 }
 
-func TestParser_BoolFalse(t *testing.T) {
-	prog, errs := parse(`x = false`)
+func TestParser_RejectBareFalse(t *testing.T) {
+	_, errs := parse(`x = false`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for bare false")
+	}
+}
+
+func TestParser_BoolTrueInArray(t *testing.T) {
+	prog, errs := parse(`x = [true]`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
@@ -198,10 +196,28 @@ func TestParser_BoolFalse(t *testing.T) {
 	assign := prog.Statements[0].(*AssignStmt)
 	arr, ok := assign.Value.(*ArrayLiteral)
 	if !ok {
-		t.Fatalf("expected ArrayLiteral (false -> []), got %T", assign.Value)
+		t.Fatalf("expected ArrayLiteral, got %T", assign.Value)
 	}
-	if len(arr.Elements) != 0 {
-		t.Fatalf("false should be [], got %d elements", len(arr.Elements))
+	// [true] desugars to [[1]] — inner ArrayLiteral with one element
+	if len(arr.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(arr.Elements))
+	}
+}
+
+func TestParser_BoolFalseInArray(t *testing.T) {
+	prog, errs := parse(`x = [false]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+
+	assign := prog.Statements[0].(*AssignStmt)
+	arr, ok := assign.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral, got %T", assign.Value)
+	}
+	// [false] desugars to [[]] — inner ArrayLiteral with zero elements
+	if len(arr.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(arr.Elements))
 	}
 }
 
@@ -1079,15 +1095,15 @@ func TestParser_KeyAccessExpr(t *testing.T) {
 	}
 }
 
-func TestParser_DynKeyAccessExpr(t *testing.T) {
-	prog, errs := parse(`|> map@$var`)
+func TestParser_DynAccessExpr(t *testing.T) {
+	prog, errs := parse(`|> map$var`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
 	sw := prog.Statements[0].(*StdoutWriteStmt)
-	dk, ok := sw.Value.(*DynKeyAccessExpr)
+	dk, ok := sw.Value.(*DynAccessExpr)
 	if !ok {
-		t.Fatalf("expected DynKeyAccessExpr, got %T", sw.Value)
+		t.Fatalf("expected DynAccessExpr, got %T", sw.Value)
 	}
 	obj := dk.Object.(*Identifier)
 	if obj.Name != "map" {
@@ -1124,14 +1140,14 @@ func TestParser_KeySetStmt(t *testing.T) {
 	}
 }
 
-func TestParser_DynKeySetStmt(t *testing.T) {
-	prog, errs := parse(`map@$var = [31]`)
+func TestParser_DynAccessSetStmt(t *testing.T) {
+	prog, errs := parse(`map$var = [31]`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
-	ds, ok := prog.Statements[0].(*DynKeySetStmt)
+	ds, ok := prog.Statements[0].(*DynAccessSetStmt)
 	if !ok {
-		t.Fatalf("expected DynKeySetStmt, got %T", prog.Statements[0])
+		t.Fatalf("expected DynAccessSetStmt, got %T", prog.Statements[0])
 	}
 	obj := ds.Object.(*Identifier)
 	if obj.Name != "map" {
@@ -1252,21 +1268,24 @@ func TestParser_DoubleAtExprStmt(t *testing.T) {
 // Phase 5: Null Literal Tests
 // ==========================================
 
-func TestParser_NullExprStmt(t *testing.T) {
-	prog, errs := parse(`null`)
-	if len(errs) > 0 {
-		t.Fatalf("unexpected errors: %v", errs)
+func TestParser_RejectBareNull(t *testing.T) {
+	_, errs := parse(`null`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for bare null")
 	}
-	if len(prog.Statements) != 1 {
-		t.Fatalf("expected 1 statement, got %d", len(prog.Statements))
+}
+
+func TestParser_RejectBareNullAssign(t *testing.T) {
+	_, errs := parse(`x = null`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for bare null in assignment")
 	}
-	es, ok := prog.Statements[0].(*ExprStmt)
-	if !ok {
-		t.Fatalf("expected ExprStmt, got %T", prog.Statements[0])
-	}
-	_, ok = es.Expr.(*NullLiteral)
-	if !ok {
-		t.Fatalf("expected NullLiteral, got %T", es.Expr)
+}
+
+func TestParser_RejectBareNumber(t *testing.T) {
+	_, errs := parse(`x = 42`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for bare number")
 	}
 }
 
@@ -1291,8 +1310,8 @@ func TestParser_NullInArray(t *testing.T) {
 	}
 }
 
-func TestParser_NullAssign(t *testing.T) {
-	prog, errs := parse(`x = null`)
+func TestParser_NullInBrackets(t *testing.T) {
+	prog, errs := parse(`x = [null]`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
@@ -1300,12 +1319,16 @@ func TestParser_NullAssign(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected AssignStmt, got %T", prog.Statements[0])
 	}
-	if assign.Name != "x" {
-		t.Fatalf("expected name 'x', got %q", assign.Name)
-	}
-	_, ok = assign.Value.(*NullLiteral)
+	arr, ok := assign.Value.(*ArrayLiteral)
 	if !ok {
-		t.Fatalf("expected NullLiteral, got %T", assign.Value)
+		t.Fatalf("expected ArrayLiteral, got %T", assign.Value)
+	}
+	if len(arr.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(arr.Elements))
+	}
+	_, ok = arr.Elements[0].(*NullLiteral)
+	if !ok {
+		t.Fatalf("expected NullLiteral inside array, got %T", arr.Elements[0])
 	}
 }
 

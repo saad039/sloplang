@@ -614,18 +614,6 @@ func IndexKeyStr(sv *SlopValue, key string) *SlopValue {
 	panic(fmt.Sprintf("sloplang: key %q not found in hashmap", key))
 }
 
-// IndexKey extracts a string key from key (must be single-element string) and calls IndexKeyStr.
-func IndexKey(sv *SlopValue, key *SlopValue) *SlopValue {
-	if len(key.Elements) != 1 {
-		panic("sloplang: dynamic key must be a single-element string array")
-	}
-	s, ok := key.Elements[0].(string)
-	if !ok {
-		panic(fmt.Sprintf("sloplang: dynamic key must be string, got %T", key.Elements[0]))
-	}
-	return IndexKeyStr(sv, s)
-}
-
 // IndexKeySetStr sets or adds a key-value pair in a hashmap. Mutates sv. Returns sv.
 // If key exists, updates the corresponding element. If not, appends key and element.
 func IndexKeySetStr(sv *SlopValue, key string, val *SlopValue) *SlopValue {
@@ -641,16 +629,34 @@ func IndexKeySetStr(sv *SlopValue, key string, val *SlopValue) *SlopValue {
 	return sv
 }
 
-// IndexKeySet extracts a string key from key and calls IndexKeySetStr.
-func IndexKeySet(sv *SlopValue, key *SlopValue, val *SlopValue) *SlopValue {
+// DynAccess dispatches on key type: int64 → Index, string → IndexKeyStr.
+func DynAccess(sv *SlopValue, key *SlopValue) *SlopValue {
 	if len(key.Elements) != 1 {
-		panic("sloplang: dynamic key must be a single-element string array")
+		panic("sloplang: dynamic access key must be a single-element array")
 	}
-	s, ok := key.Elements[0].(string)
-	if !ok {
-		panic(fmt.Sprintf("sloplang: dynamic key must be string, got %T", key.Elements[0]))
+	switch k := key.Elements[0].(type) {
+	case int64:
+		return Index(sv, key)
+	case string:
+		return IndexKeyStr(sv, k)
+	default:
+		panic(fmt.Sprintf("sloplang: dynamic access key must be int64 or string, got %T", key.Elements[0]))
 	}
-	return IndexKeySetStr(sv, s, val)
+}
+
+// DynAccessSet dispatches on key type: int64 → IndexSet, string → IndexKeySetStr.
+func DynAccessSet(sv *SlopValue, key *SlopValue, val *SlopValue) *SlopValue {
+	if len(key.Elements) != 1 {
+		panic("sloplang: dynamic access key must be a single-element array")
+	}
+	switch k := key.Elements[0].(type) {
+	case int64:
+		return IndexSet(sv, key, val)
+	case string:
+		return IndexKeySetStr(sv, k, val)
+	default:
+		panic(fmt.Sprintf("sloplang: dynamic access key must be int64 or string, got %T", key.Elements[0]))
+	}
 }
 
 // MapKeys returns a new SlopValue with each key as a string element.

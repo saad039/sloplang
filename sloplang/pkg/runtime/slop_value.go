@@ -21,16 +21,30 @@ func NewSlopValue(elems ...any) *SlopValue {
 	return &SlopValue{Elements: elems}
 }
 
-// IsTruthy returns true if the SlopValue is non-empty.
-// [] is falsy, everything else (including [0]) is truthy.
-// Panics if any element is SlopNull.
+// IsTruthy returns true only for [1] (single-element int64 with value 1).
+// [] is falsy. Everything else panics — strict boolean semantics.
 func (sv *SlopValue) IsTruthy() bool {
-	for _, elem := range sv.Elements {
-		if _, ok := elem.(SlopNull); ok {
-			panic("sloplang: cannot use null as boolean")
-		}
+	if len(sv.Elements) == 0 {
+		return false
 	}
-	return len(sv.Elements) > 0
+	if len(sv.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: boolean expression must be [1] or [], got %d-element array", len(sv.Elements)))
+	}
+	elem := sv.Elements[0]
+	if _, ok := elem.(SlopNull); ok {
+		panic("sloplang: cannot use null as boolean")
+	}
+	i, ok := elem.(int64)
+	if !ok {
+		panic(fmt.Sprintf("sloplang: boolean expression must be [1] or [], got single-element %T", elem))
+	}
+	if i == 1 {
+		return true
+	}
+	if i == 0 {
+		panic("sloplang: [0] is not a valid boolean — use [] for false")
+	}
+	panic(fmt.Sprintf("sloplang: boolean expression must be [1] or [], got [%d]", i))
 }
 
 // StdoutWrite prints a SlopValue to stdout with a trailing newline.

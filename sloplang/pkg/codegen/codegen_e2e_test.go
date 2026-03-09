@@ -367,10 +367,8 @@ func TestE2E_NotTruthy(t *testing.T) {
 }
 
 func TestE2E_NotZeroIsTruthy(t *testing.T) {
-	got := runE2E(t, "x = ![0]\n|> str(x)")
-	if got != "[]" {
-		t.Fatalf("expected %q, got %q", "[]", got)
-	}
+	// [0] is not a valid boolean in strict mode; ![0] panics
+	runE2EExpectPanic(t, "x = ![0]")
 }
 
 func TestE2E_DoubleNotTruthy(t *testing.T) {
@@ -905,11 +903,8 @@ func TestE2E_IfInsideFn(t *testing.T) {
 }
 
 func TestE2E_IfNotOperator(t *testing.T) {
-	// [0] is truthy, !truthy = falsy → else
-	got := runE2E(t, "if ![0] { |> \"not\" } else { |> \"yes\" }")
-	if got != "yes" {
-		t.Fatalf("expected %q, got %q", "yes", got)
-	}
+	// [0] is not a valid boolean in strict mode; ![0] panics
+	runE2EExpectPanic(t, `if ![0] { |> "not" } else { |> "yes" }`)
 }
 
 func TestE2E_IfElseMultiStmt(t *testing.T) {
@@ -1278,14 +1273,16 @@ func TestE2E_FnThreeParams(t *testing.T) {
 }
 
 func TestE2E_IfTrueKeyword(t *testing.T) {
-	got := runE2E(t, "if true { |> \"yes\" }")
+	// bare true is rejected; use [1] for truthy
+	got := runE2E(t, `if [1] { |> "yes" }`)
 	if got != "yes" {
 		t.Fatalf("expected %q, got %q", "yes", got)
 	}
 }
 
 func TestE2E_IfFalseKeyword(t *testing.T) {
-	got := runE2E(t, "if false { |> \"yes\" } else { |> \"no\" }")
+	// bare false is rejected; use [] for falsy
+	got := runE2E(t, `if [] { |> "yes" } else { |> "no" }`)
 	if got != "no" {
 		t.Fatalf("expected %q, got %q", "no", got)
 	}
@@ -1565,17 +1562,13 @@ func TestE2E_EmptyArrayIsFalsy(t *testing.T) {
 }
 
 func TestE2E_ZeroIsTruthy(t *testing.T) {
-	got := runE2E(t, `if [0] { |> "yes" } else { |> "no" }`)
-	if got != "yes" {
-		t.Fatalf("expected %q, got %q", "yes", got)
-	}
+	// [0] is not a valid boolean in strict mode; panics
+	runE2EExpectPanic(t, `if [0] { |> "yes" } else { |> "no" }`)
 }
 
 func TestE2E_EmptyStringIsTruthy(t *testing.T) {
-	got := runE2E(t, `if "" { |> "yes" } else { |> "no" }`)
-	if got != "yes" {
-		t.Fatalf("expected %q, got %q", "yes", got)
-	}
+	// strings are not valid booleans in strict mode; panics
+	runE2EExpectPanic(t, `if "" { |> "yes" } else { |> "no" }`)
 }
 
 func TestE2E_AddEmptyArrays(t *testing.T) {
@@ -2001,7 +1994,7 @@ arr@1 = [99]
 func TestE2E_IndexSetVarIndex(t *testing.T) {
 	got := runE2E(t, `arr = [10, 20, 30]
 idx = [2]
-arr@(idx) = [99]
+arr$idx = [99]
 |> str(arr)`)
 	if got != "[10, 20, 99]" {
 		t.Fatalf("expected %q, got %q", "[10, 20, 99]", got)
@@ -2391,7 +2384,7 @@ func TestE2E_FnWithArrayManip(t *testing.T) {
 		if i < [0] {
 			break
 		}
-		result << arr@(i)
+		result << arr$i
 		i = i - [1]
 	}
 	<- result
@@ -2573,7 +2566,7 @@ func TestE2E_KeyAccessLit_NonExistentPanic(t *testing.T) {
 func TestE2E_KeyAccessDyn_Basic(t *testing.T) {
 	got := runE2E(t, `person{name, age} = ["bob", [30]]
 which = "name"
-|> person@$which`)
+|> person$which`)
 	if got != "bob" {
 		t.Fatalf("expected %q, got %q", "bob", got)
 	}
@@ -2583,8 +2576,8 @@ func TestE2E_KeyAccessDyn_DifferentKeys(t *testing.T) {
 	got := runE2E(t, `person{name, age} = ["bob", [30]]
 k1 = "name"
 k2 = "age"
-|> person@$k1
-|> str(person@$k2)`)
+|> person$k1
+|> str(person$k2)`)
 	if got != "bob\n30" {
 		t.Fatalf("expected %q, got %q", "bob\n30", got)
 	}
@@ -2593,7 +2586,7 @@ k2 = "age"
 func TestE2E_KeyAccessDyn_InLoop(t *testing.T) {
 	got := runE2E(t, `data{x, y} = [[10], [20]]
 for k in ##data {
-	|> str(data@$k)
+	|> str(data$k)
 }`)
 	if got != "10\n20" {
 		t.Fatalf("expected %q, got %q", "10\n20", got)
@@ -2603,8 +2596,8 @@ for k in ##data {
 func TestE2E_KeyAccessDyn_AfterDynSet(t *testing.T) {
 	got := runE2E(t, `person{name, age} = ["bob", [30]]
 key = "age"
-person@$key = [31]
-|> str(person@$key)`)
+person$key = [31]
+|> str(person$key)`)
 	if got != "31" {
 		t.Fatalf("expected %q, got %q", "31", got)
 	}
@@ -2658,7 +2651,7 @@ if [1] == [1] {
 func TestE2E_KeySetDyn_Basic(t *testing.T) {
 	got := runE2E(t, `person{name, age} = ["bob", [30]]
 key = "age"
-person@$key = [31]
+person$key = [31]
 |> str(person@age)`)
 	if got != "31" {
 		t.Fatalf("expected %q, got %q", "31", got)
@@ -2668,7 +2661,7 @@ person@$key = [31]
 func TestE2E_KeySetDyn_AddNewKey(t *testing.T) {
 	got := runE2E(t, `person{name, age} = ["bob", [30]]
 key = "email"
-person@$key = "new@test.com"
+person$key = "new@test.com"
 |> person@email`)
 	if got != "new@test.com" {
 		t.Fatalf("expected %q, got %q", "new@test.com", got)
@@ -2681,7 +2674,7 @@ keys = ["a", "b", "c"]
 vals = [[1], [2], [3]]
 i = [0]
 for k in keys {
-	result@$k = vals@(i)
+	result$k = vals$i
 	i = i + [1]
 }
 |> str(##result)
@@ -2815,11 +2808,11 @@ for item in items {
 	for k in ##counts {
 		if k == item {
 			found = [1]
-			counts@$k = counts@$k + [1]
+			counts$k = counts$k + [1]
 		}
 	}
 	if found == [0] {
-		counts@$item = [1]
+		counts$item = [1]
 	}
 }
 |> str(counts@a)
@@ -2845,7 +2838,7 @@ func TestE2E_KeyFromFnResultDynAccess(t *testing.T) {
 }
 person{name, age} = ["bob", [30]]
 k = getKey()
-|> str(person@$k)`)
+|> str(person$k)`)
 	if got != "30" {
 		t.Fatalf("expected %q, got %q", "30", got)
 	}
@@ -2925,7 +2918,7 @@ if person@age > [18] {
 // ==========================================
 
 func TestE2E_NullAssignStr(t *testing.T) {
-	got := runE2E(t, `x = null
+	got := runE2E(t, `x = [null]
 |> str(x)`)
 	if got != "null" {
 		t.Fatalf("expected %q, got %q", "null", got)
@@ -2933,7 +2926,7 @@ func TestE2E_NullAssignStr(t *testing.T) {
 }
 
 func TestE2E_NullStdoutWrite(t *testing.T) {
-	got := runE2E(t, `|> null`)
+	got := runE2E(t, `|> [null]`)
 	if got != "null" {
 		t.Fatalf("expected %q, got %q", "null", got)
 	}
@@ -2948,21 +2941,21 @@ func TestE2E_NullArrayFormat(t *testing.T) {
 }
 
 func TestE2E_NullEqNull(t *testing.T) {
-	got := runE2E(t, `if null == null { |> "yes" }`)
+	got := runE2E(t, `if [null] == [null] { |> "yes" }`)
 	if got != "yes" {
 		t.Fatalf("expected %q, got %q", "yes", got)
 	}
 }
 
 func TestE2E_NullNeqValue(t *testing.T) {
-	got := runE2E(t, `if null != [5] { |> "yes" }`)
+	got := runE2E(t, `if [null] != [5] { |> "yes" }`)
 	if got != "yes" {
 		t.Fatalf("expected %q, got %q", "yes", got)
 	}
 }
 
 func TestE2E_ValueEqNull(t *testing.T) {
-	got := runE2E(t, `if [1] == null { |> "yes" } else { |> "no" }`)
+	got := runE2E(t, `if [1] == [null] { |> "yes" } else { |> "no" }`)
 	if got != "no" {
 		t.Fatalf("expected %q, got %q", "no", got)
 	}
@@ -2976,7 +2969,7 @@ func TestE2E_NullLength(t *testing.T) {
 }
 
 func TestE2E_NullContains(t *testing.T) {
-	got := runE2E(t, `if [1, null] ?? null { |> "found" }`)
+	got := runE2E(t, `if [1, null] ?? [null] { |> "found" }`)
 	if got != "found" {
 		t.Fatalf("expected %q, got %q", "found", got)
 	}
@@ -2985,27 +2978,27 @@ func TestE2E_NullContains(t *testing.T) {
 // --- Null panic tests ---
 
 func TestE2E_NullAddPanic(t *testing.T) {
-	runE2EExpectPanic(t, `x = null + [1]`)
+	runE2EExpectPanic(t, `x = [null] + [1]`)
 }
 
 func TestE2E_NullNegatePanic(t *testing.T) {
-	runE2EExpectPanic(t, `x = -null`)
+	runE2EExpectPanic(t, `x = -[null]`)
 }
 
 func TestE2E_NullIfPanic(t *testing.T) {
-	runE2EExpectPanic(t, `if null { |> "nope" }`)
+	runE2EExpectPanic(t, `if [null] { |> "nope" }`)
 }
 
 func TestE2E_NullNotPanic(t *testing.T) {
-	runE2EExpectPanic(t, `x = !null`)
+	runE2EExpectPanic(t, `x = ![null]`)
 }
 
 func TestE2E_NullGtPanic(t *testing.T) {
-	runE2EExpectPanic(t, `x = null > [1]`)
+	runE2EExpectPanic(t, `x = [null] > [1]`)
 }
 
 func TestE2E_NullIteratePanic(t *testing.T) {
-	runE2EExpectPanic(t, `for x in null { |> "nope" }`)
+	runE2EExpectPanic(t, `for x in [null] { |> "nope" }`)
 }
 
 // --- Null non-panic edge cases ---
@@ -3019,7 +3012,7 @@ func TestE2E_NullInHashmapValue(t *testing.T) {
 }
 
 func TestE2E_NullForwardDecl(t *testing.T) {
-	got := runE2E(t, `x = null
+	got := runE2E(t, `x = [null]
 x = [42]
 |> str(x)`)
 	if got != "42" {
@@ -3144,7 +3137,7 @@ func TestE2E_WriteSplitToNum(t *testing.T) {
 	got := runE2E(t, `.> "nums.txt" "10 20 30"
 data, err = <. "nums.txt"
 parts = split(data, " ")
-sum = 0
+sum = [0]
 for p in parts {
 	val, verr = to_num(p)
 	sum = sum + val
@@ -3237,7 +3230,7 @@ data, err = <. "test.txt"
 }
 
 func TestE2E_FileWriteNumericFormatted(t *testing.T) {
-	got := runE2E(t, `x = 42
+	got := runE2E(t, `x = [42]
 .> "test.txt" str(x)
 data, err = <. "test.txt"
 |> data`)
@@ -3249,7 +3242,7 @@ data, err = <. "test.txt"
 func TestE2E_FileReadInIf(t *testing.T) {
 	got := runE2E(t, `.> "test.txt" "exists"
 data, err = <. "test.txt"
-if err == 0 {
+if err == [0] {
 	|> data
 } else {
 	|> "fail"
@@ -3261,7 +3254,7 @@ if err == 0 {
 
 func TestE2E_FileReadMissingInIf(t *testing.T) {
 	got := runE2E(t, `data, err = <. "nope.txt"
-if err != 0 {
+if err != [0] {
 	|> "not found"
 } else {
 	|> data
@@ -3274,7 +3267,7 @@ if err != 0 {
 func TestE2E_FileIOInFunction(t *testing.T) {
 	got := runE2E(t, `fn save(path, content) {
 	.> path content
-	<- 0
+	<- [0]
 }
 fn load(path) {
 	data, err = <. path
@@ -3361,14 +3354,14 @@ func TestE2E_StdinReadEmptyLine(t *testing.T) {
 
 func TestE2E_StdinReadInLoop(t *testing.T) {
 	got := runE2EWithStdin(t, `result = []
-count = 0
+count = [0]
 for {
 	line, err = <|
-	if err != 0 {
+	if err != [0] {
 		break
 	}
 	result << line
-	count = count + 1
+	count = count + [1]
 }
 |> str(count)
 |> str(result)`, "a\nb\nc\n")
@@ -3422,8 +3415,8 @@ func TestE2E_SplitLeadingSep(t *testing.T) {
 func TestE2E_SplitConsecutiveSeps(t *testing.T) {
 	got := runE2E(t, `parts = split("a,,b", ",")
 |> str(#parts)
-|> str(parts@(0))
-|> str(parts@(2))`)
+|> str(parts@0)
+|> str(parts@2)`)
 	if got != "3\na\nb" {
 		t.Fatalf("expected %q, got %q", "3\na\nb", got)
 	}
@@ -3449,8 +3442,8 @@ for p in parts {
 
 func TestE2E_SplitResultIndex(t *testing.T) {
 	got := runE2E(t, `parts = split("a:b:c", ":")
-|> parts@(0)
-|> parts@(2)`)
+|> parts@0
+|> parts@2`)
 	if got != "a\nc" {
 		t.Fatalf("expected %q, got %q", "a\nc", got)
 	}
@@ -3550,7 +3543,7 @@ func TestE2E_ToNumScientificNotation(t *testing.T) {
 
 func TestE2E_ToNumErrCheckBeforeUse(t *testing.T) {
 	got := runE2E(t, `val, err = to_num("bad")
-if err != 0 {
+if err != [0] {
 	|> "parse error"
 } else {
 	|> str(val)
@@ -3562,7 +3555,7 @@ if err != 0 {
 
 func TestE2E_ToNumInLoop(t *testing.T) {
 	got := runE2E(t, `strs = ["10", "20", "30"]
-sum = 0
+sum = [0]
 for s in strs {
 	v, e = to_num(s)
 	sum = sum + v
@@ -3576,7 +3569,7 @@ for s in strs {
 func TestE2E_ToNumIntPreferredOverFloat(t *testing.T) {
 	// "42" should parse as int64, not float64
 	got := runE2E(t, `val, err = to_num("42")
-x = val + 8
+x = val + [8]
 |> str(x)`)
 	if got != "50" {
 		t.Fatalf("expected %q, got %q", "50", got)
@@ -3588,7 +3581,7 @@ x = val + 8
 func TestE2E_StdinSplitToNum(t *testing.T) {
 	got := runE2EWithStdin(t, `line, err = <|
 parts = split(line, " ")
-sum = 0
+sum = [0]
 for p in parts {
 	v, e = to_num(p)
 	sum = sum + v
@@ -3606,7 +3599,7 @@ parts = split(data, ",")
 evens = []
 for p in parts {
 	v, e = to_num(p)
-	if v % 2 == 0 {
+	if v % [2] == [0] {
 		evens << p
 	}
 }
@@ -3642,11 +3635,11 @@ data, rerr = <. "captured.txt"
 func TestE2E_SplitThenJoinViaAppend(t *testing.T) {
 	got := runE2E(t, `parts = split("a-b-c", "-")
 .> "joined.txt" ""
-first = 1
+first = [1]
 for p in parts {
-	if first == 1 {
+	if first == [1] {
 		.> "joined.txt" p
-		first = 0
+		first = [0]
 	} else {
 		.>> "joined.txt" ","
 		.>> "joined.txt" p
@@ -3756,11 +3749,11 @@ func TestE2E_FileWriteReadLongContent(t *testing.T) {
 	// Build a long string via repeated concat
 	got := runE2E(t, `s = "abcdefghij"
 long = s
-i = 0
+i = [0]
 for {
 	if i == [9] { break }
 	long = long ++ s
-	i = i + 1
+	i = i + [1]
 }
 .> "long.txt" str(long)
 data, err = <. "long.txt"
@@ -3800,8 +3793,8 @@ func TestE2E_FileAppendNewlineDelimited(t *testing.T) {
 data, err = <. "lines.txt"
 parts = split(data, "\n")
 |> str(#parts)
-|> parts@(0)
-|> parts@(2)`)
+|> parts@0
+|> parts@2`)
 	if got != "3\nline1\nline3" {
 		t.Fatalf("expected %q, got %q", "3\nline1\nline3", got)
 	}
@@ -3926,11 +3919,11 @@ func TestE2E_StdinReadEmptyInput(t *testing.T) {
 }
 
 func TestE2E_StdinReadManyLines(t *testing.T) {
-	got := runE2EWithStdin(t, `count = 0
+	got := runE2EWithStdin(t, `count = [0]
 for {
 	line, err = <|
-	if err != 0 { break }
-	count = count + 1
+	if err != [0] { break }
+	count = count + [1]
 }
 |> str(count)`, "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\n")
 	if got != "10" {
@@ -3999,9 +3992,9 @@ func TestE2E_SplitWhitespaceSep(t *testing.T) {
 func TestE2E_SplitResultArithmetic(t *testing.T) {
 	// Split then to_num each part and do arithmetic
 	got := runE2E(t, `parts = split("100,200,300", ",")
-v1, e1 = to_num(parts@(0))
-v2, e2 = to_num(parts@(1))
-v3, e3 = to_num(parts@(2))
+v1, e1 = to_num(parts@0)
+v2, e2 = to_num(parts@1)
+v3, e3 = to_num(parts@2)
 |> str(v1 + v2 + v3)`)
 	if got != "600" {
 		t.Fatalf("expected %q, got %q", "600", got)
@@ -4010,8 +4003,8 @@ v3, e3 = to_num(parts@(2))
 
 func TestE2E_SplitThenIndex(t *testing.T) {
 	got := runE2E(t, `parts = split("zero,one,two,three,four", ",")
-|> parts@(0)
-|> parts@(4)
+|> parts@0
+|> parts@4
 |> str(#parts)`)
 	if got != "zero\nfour\n5" {
 		t.Fatalf("expected %q, got %q", "zero\nfour\n5", got)
@@ -4132,14 +4125,14 @@ func TestE2E_ToNumSmallNegativeFloat(t *testing.T) {
 func TestE2E_ToNumMixedValidInvalid(t *testing.T) {
 	// Loop through mixed valid/invalid, count successes and failures
 	got := runE2E(t, `inputs = ["1", "two", "3", "four", "5"]
-ok = 0
-fail = 0
+ok = [0]
+fail = [0]
 for s in inputs {
 	v, e = to_num(s)
-	if e == 0 {
-		ok = ok + 1
+	if e == [0] {
+		ok = ok + [1]
 	} else {
-		fail = fail + 1
+		fail = fail + [1]
 	}
 }
 |> str(ok)
@@ -4177,7 +4170,7 @@ if a < b {
 func TestE2E_ReadMissingSkipProcessing(t *testing.T) {
 	// Read missing file, check err, skip processing
 	got := runE2E(t, `data, err = <. "missing.txt"
-if err != 0 {
+if err != [0] {
 	|> "skipped"
 } else {
 	parts = split(data, ",")
@@ -4192,10 +4185,10 @@ func TestE2E_StdinSplitFilterToNum(t *testing.T) {
 	// Read stdin, split, filter only numeric, sum
 	got := runE2EWithStdin(t, `line, err = <|
 parts = split(line, ",")
-sum = 0
+sum = [0]
 for p in parts {
 	v, e = to_num(p)
-	if e == 0 {
+	if e == [0] {
 		sum = sum + v
 	}
 }
@@ -4207,11 +4200,11 @@ for p in parts {
 
 func TestE2E_FileRoundtripNumeric(t *testing.T) {
 	// Write number as string, read back, parse to num, do arithmetic
-	got := runE2E(t, `x = 42
+	got := runE2E(t, `x = [42]
 .> "num.txt" str(x)
 data, err = <. "num.txt"
 val, verr = to_num(data)
-result = val * 2
+result = val * [2]
 |> str(result)`)
 	if got != "84" {
 		t.Fatalf("expected %q, got %q", "84", got)
@@ -4223,7 +4216,7 @@ func TestE2E_FileSplitToNumSum(t *testing.T) {
 	got := runE2E(t, `.> "csv.txt" "5,10,15,20,25"
 data, err = <. "csv.txt"
 parts = split(data, ",")
-sum = 0
+sum = [0]
 for p in parts {
 	v, e = to_num(p)
 	sum = sum + v
@@ -4251,7 +4244,7 @@ func TestE2E_SplitToNumWriteResults(t *testing.T) {
 .> "results.txt" ""
 for p in parts {
 	v, e = to_num(p)
-	doubled = v * 2
+	doubled = v * [2]
 	.>> "results.txt" str(doubled)
 	.>> "results.txt" ","
 }
@@ -4263,14 +4256,14 @@ data, err = <. "results.txt"
 }
 
 func TestE2E_MultipleStdinLinesSplitEach(t *testing.T) {
-	got := runE2EWithStdin(t, `total = 0
+	got := runE2EWithStdin(t, `total = [0]
 for {
 	line, err = <|
-	if err != 0 { break }
+	if err != [0] { break }
 	parts = split(line, " ")
 	for p in parts {
 		v, e = to_num(p)
-		if e == 0 {
+		if e == [0] {
 			total = total + v
 		}
 	}
@@ -4285,14 +4278,14 @@ func TestE2E_FileAppendFromStdinLoop(t *testing.T) {
 	got := runE2EWithStdin(t, `.> "log.txt" ""
 for {
 	line, err = <|
-	if err != 0 { break }
+	if err != [0] { break }
 	.>> "log.txt" line
 	.>> "log.txt" "\n"
 }
 data, rerr = <. "log.txt"
 lines = split(data, "\n")
 // Last element is empty due to trailing \n
-|> str(#lines - 1)`, "alpha\nbeta\ngamma\n")
+|> str(#lines - [1])`, "alpha\nbeta\ngamma\n")
 	if got != "3" {
 		t.Fatalf("expected %q, got %q", "3", got)
 	}
@@ -4306,7 +4299,7 @@ parts = split(data, ",")
 result = []
 for p in parts {
 	v, e = to_num(p)
-	result << v + 1
+	result << v + [1]
 }
 .> "b.txt" str(result)
 data2, e2 = <. "b.txt"
@@ -4340,8 +4333,8 @@ all << "d"
 }
 
 func TestE2E_FileWriteReadInConditionalBranches(t *testing.T) {
-	got := runE2E(t, `flag = 1
-if flag == 1 {
+	got := runE2E(t, `flag = [1]
+if flag == [1] {
 	.> "cond.txt" "branch-true"
 } else {
 	.> "cond.txt" "branch-false"

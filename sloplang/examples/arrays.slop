@@ -1,11 +1,11 @@
 // Index access (@)
 arr = [10, 20, 30, 40, 50]
-|> str(arr@(0))
-|> str(arr@(4))
+|> str(arr@0)
+|> str(arr@4)
 
-// Index with variable
+// Index with variable ($)
 i = [2]
-|> str(arr@(i))
+|> str(arr$i)
 
 // Length (#)
 |> str(#arr)
@@ -47,7 +47,7 @@ uniq = ~[1, 2, 2, 3, 1, 3]
 
 // Index set
 data = [100, 200, 300]
-data@(1) = [999]
+data@1 = [999]
 |> str(data)
 
 // Chained operations

@@ -3,7 +3,7 @@
 
 // Read from file
 data, err = <. "demo.txt"
-if err != 0 {
+if err != [0] {
     |> "read failed"
 }
 |> data

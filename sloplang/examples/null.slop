@@ -1,5 +1,5 @@
 // Forward declaration with null
-x = null
+x = [null]
 |> str(x)
 
 // Reassign from null
@@ -11,12 +11,12 @@ arr = [null, null, null]
 |> str(arr)
 
 // Null equality
-if null == null {
+if [null] == [null] {
     |> "null equals null"
 }
 
 // Null inequality
-if null != [5] {
+if [null] != [5] {
     |> "null is not 5"
 }
 
@@ -24,9 +24,9 @@ if null != [5] {
 |> str(#[null, null])
 
 // Contains finds null
-if [1, null, 3] ?? null {
+if [1, null, 3] ?? [null] {
     |> "array contains null"
 }
 
 // str(null) returns "null"
-|> str(null)
+|> str([null])
