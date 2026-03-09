@@ -1,18 +1,57 @@
-arr = [10, 20, 30, 40]
-|> str(arr@0)
+// Index access (@)
+arr = [10, 20, 30, 40, 50]
+|> str(arr@(0))
+|> str(arr@(4))
+
+// Index with variable
+i = [2]
+|> str(arr@(i))
+
+// Length (#)
 |> str(#arr)
 
-arr << [50]
+// Push (<<)
+arr << [60]
+|> str(arr)
+|> str(#arr)
+
+// Pop (>>)
+last = >>arr
+|> str(last)
 |> str(arr)
 
+// Remove at index (~@)
+removed = arr ~@ [1]
+|> str(removed)
+|> str(arr)
+
+// Slice (::)
 sub = arr::1::3
 |> str(sub)
 
+// Concat (++)
 combined = [1, 2] ++ [3, 4]
 |> str(combined)
 
-has = arr ?? [20]
-|> str(has)
+// Remove value (--)
+without = [1, 2, 3, 2, 4] -- [2]
+|> str(without)
 
-uniq = ~[1, 2, 2, 3, 1]
+// Unique (~)
+uniq = ~[1, 2, 2, 3, 1, 3]
 |> str(uniq)
+
+// Contains (??)
+|> str([10, 20, 30] ?? [20])
+|> str([10, 20, 30] ?? [99])
+
+// Index set
+data = [100, 200, 300]
+data@(1) = [999]
+|> str(data)
+
+// Chained operations
+nums = [5, 3, 1, 4, 2]
+nums << [6]
+top = nums::0::3
+|> str(top)

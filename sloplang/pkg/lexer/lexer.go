@@ -218,13 +218,32 @@ func (l *Lexer) NextToken() Token {
 		}
 
 	case l.ch == '@':
-		tok.Type = TOKEN_AT
-		tok.Literal = "@"
-		l.readChar()
+		if l.peekChar() == '@' {
+			tok.Type = TOKEN_DOUBLE_AT
+			tok.Literal = "@@"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_AT
+			tok.Literal = "@"
+			l.readChar()
+		}
 
 	case l.ch == '#':
-		tok.Type = TOKEN_HASH
-		tok.Literal = "#"
+		if l.peekChar() == '#' {
+			tok.Type = TOKEN_DOUBLE_HASH
+			tok.Literal = "##"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_HASH
+			tok.Literal = "#"
+			l.readChar()
+		}
+
+	case l.ch == '$':
+		tok.Type = TOKEN_DOLLAR
+		tok.Literal = "$"
 		l.readChar()
 
 	case l.ch == '~':

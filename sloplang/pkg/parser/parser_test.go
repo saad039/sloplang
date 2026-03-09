@@ -1015,6 +1015,300 @@ func TestParser_RemoveAtExpr(t *testing.T) {
 	}
 }
 
+// ==========================================
+// Phase 5: Hashmap Tests
+// ==========================================
+
+func TestParser_HashDeclStmt(t *testing.T) {
+	prog, errs := parse(`person{name, age} = ["bob", [30]]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	hd, ok := prog.Statements[0].(*HashDeclStmt)
+	if !ok {
+		t.Fatalf("expected HashDeclStmt, got %T", prog.Statements[0])
+	}
+	if hd.Name != "person" {
+		t.Fatalf("expected name 'person', got %q", hd.Name)
+	}
+	if len(hd.Keys) != 2 || hd.Keys[0] != "name" || hd.Keys[1] != "age" {
+		t.Fatalf("expected keys [name, age], got %v", hd.Keys)
+	}
+	arr, ok := hd.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral value, got %T", hd.Value)
+	}
+	if len(arr.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(arr.Elements))
+	}
+}
+
+func TestParser_HashDeclStmt_EmptyKeys(t *testing.T) {
+	prog, errs := parse(`counts{} = []`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	hd, ok := prog.Statements[0].(*HashDeclStmt)
+	if !ok {
+		t.Fatalf("expected HashDeclStmt, got %T", prog.Statements[0])
+	}
+	if hd.Name != "counts" {
+		t.Fatalf("expected name 'counts', got %q", hd.Name)
+	}
+	if len(hd.Keys) != 0 {
+		t.Fatalf("expected empty keys, got %v", hd.Keys)
+	}
+}
+
+func TestParser_KeyAccessExpr(t *testing.T) {
+	prog, errs := parse(`|> map@name`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	sw := prog.Statements[0].(*StdoutWriteStmt)
+	ka, ok := sw.Value.(*KeyAccessExpr)
+	if !ok {
+		t.Fatalf("expected KeyAccessExpr, got %T", sw.Value)
+	}
+	obj := ka.Object.(*Identifier)
+	if obj.Name != "map" {
+		t.Fatalf("expected 'map', got %q", obj.Name)
+	}
+	if ka.Key != "name" {
+		t.Fatalf("expected key 'name', got %q", ka.Key)
+	}
+}
+
+func TestParser_DynKeyAccessExpr(t *testing.T) {
+	prog, errs := parse(`|> map@$var`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	sw := prog.Statements[0].(*StdoutWriteStmt)
+	dk, ok := sw.Value.(*DynKeyAccessExpr)
+	if !ok {
+		t.Fatalf("expected DynKeyAccessExpr, got %T", sw.Value)
+	}
+	obj := dk.Object.(*Identifier)
+	if obj.Name != "map" {
+		t.Fatalf("expected 'map', got %q", obj.Name)
+	}
+	keyVar := dk.KeyVar.(*Identifier)
+	if keyVar.Name != "var" {
+		t.Fatalf("expected key var 'var', got %q", keyVar.Name)
+	}
+}
+
+func TestParser_KeySetStmt(t *testing.T) {
+	prog, errs := parse(`map@name = [31]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ks, ok := prog.Statements[0].(*KeySetStmt)
+	if !ok {
+		t.Fatalf("expected KeySetStmt, got %T", prog.Statements[0])
+	}
+	obj := ks.Object.(*Identifier)
+	if obj.Name != "map" {
+		t.Fatalf("expected 'map', got %q", obj.Name)
+	}
+	if ks.Key != "name" {
+		t.Fatalf("expected key 'name', got %q", ks.Key)
+	}
+	arr, ok := ks.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral value, got %T", ks.Value)
+	}
+	if len(arr.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(arr.Elements))
+	}
+}
+
+func TestParser_DynKeySetStmt(t *testing.T) {
+	prog, errs := parse(`map@$var = [31]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ds, ok := prog.Statements[0].(*DynKeySetStmt)
+	if !ok {
+		t.Fatalf("expected DynKeySetStmt, got %T", prog.Statements[0])
+	}
+	obj := ds.Object.(*Identifier)
+	if obj.Name != "map" {
+		t.Fatalf("expected 'map', got %q", obj.Name)
+	}
+	keyVar := ds.KeyVar.(*Identifier)
+	if keyVar.Name != "var" {
+		t.Fatalf("expected key var 'var', got %q", keyVar.Name)
+	}
+}
+
+func TestParser_DoubleHashUnary(t *testing.T) {
+	prog, errs := parse(`x = ##map`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	unary, ok := assign.Value.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", assign.Value)
+	}
+	if unary.Op != "##" {
+		t.Fatalf("expected op '##', got %q", unary.Op)
+	}
+}
+
+func TestParser_DoubleAtUnary(t *testing.T) {
+	prog, errs := parse(`x = @@map`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	unary, ok := assign.Value.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", assign.Value)
+	}
+	if unary.Op != "@@" {
+		t.Fatalf("expected op '@@', got %q", unary.Op)
+	}
+}
+
+func TestParser_IndexExpr_Regression(t *testing.T) {
+	// Regression: arr@0 must still produce IndexExpr, not KeyAccessExpr
+	prog, errs := parse(`|> arr@0`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	sw := prog.Statements[0].(*StdoutWriteStmt)
+	idx, ok := sw.Value.(*IndexExpr)
+	if !ok {
+		t.Fatalf("expected IndexExpr, got %T", sw.Value)
+	}
+	obj := idx.Object.(*Identifier)
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+	num := idx.Index.(*NumberLiteral)
+	if num.Value != "0" {
+		t.Fatalf("expected '0', got %q", num.Value)
+	}
+}
+
+func TestParser_IndexSetStmt_Regression(t *testing.T) {
+	// Regression: arr@0 = [99] must still produce IndexSetStmt
+	prog, errs := parse(`arr@0 = [99]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	is, ok := prog.Statements[0].(*IndexSetStmt)
+	if !ok {
+		t.Fatalf("expected IndexSetStmt, got %T", prog.Statements[0])
+	}
+	obj := is.Object.(*Identifier)
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+}
+
+func TestParser_DoubleHashExprStmt(t *testing.T) {
+	// ##map as a standalone expression statement
+	prog, errs := parse(`##map`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	es, ok := prog.Statements[0].(*ExprStmt)
+	if !ok {
+		t.Fatalf("expected ExprStmt, got %T", prog.Statements[0])
+	}
+	unary, ok := es.Expr.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", es.Expr)
+	}
+	if unary.Op != "##" {
+		t.Fatalf("expected op '##', got %q", unary.Op)
+	}
+}
+
+func TestParser_DoubleAtExprStmt(t *testing.T) {
+	// @@map as a standalone expression statement
+	prog, errs := parse(`@@map`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	es, ok := prog.Statements[0].(*ExprStmt)
+	if !ok {
+		t.Fatalf("expected ExprStmt, got %T", prog.Statements[0])
+	}
+	unary, ok := es.Expr.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", es.Expr)
+	}
+	if unary.Op != "@@" {
+		t.Fatalf("expected op '@@', got %q", unary.Op)
+	}
+}
+
+// ==========================================
+// Phase 5: Null Literal Tests
+// ==========================================
+
+func TestParser_NullExprStmt(t *testing.T) {
+	prog, errs := parse(`null`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(prog.Statements) != 1 {
+		t.Fatalf("expected 1 statement, got %d", len(prog.Statements))
+	}
+	es, ok := prog.Statements[0].(*ExprStmt)
+	if !ok {
+		t.Fatalf("expected ExprStmt, got %T", prog.Statements[0])
+	}
+	_, ok = es.Expr.(*NullLiteral)
+	if !ok {
+		t.Fatalf("expected NullLiteral, got %T", es.Expr)
+	}
+}
+
+func TestParser_NullInArray(t *testing.T) {
+	prog, errs := parse(`x = [null, null]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	arr, ok := assign.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral, got %T", assign.Value)
+	}
+	if len(arr.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(arr.Elements))
+	}
+	for i, elem := range arr.Elements {
+		_, ok := elem.(*NullLiteral)
+		if !ok {
+			t.Fatalf("element %d: expected NullLiteral, got %T", i, elem)
+		}
+	}
+}
+
+func TestParser_NullAssign(t *testing.T) {
+	prog, errs := parse(`x = null`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign, ok := prog.Statements[0].(*AssignStmt)
+	if !ok {
+		t.Fatalf("expected AssignStmt, got %T", prog.Statements[0])
+	}
+	if assign.Name != "x" {
+		t.Fatalf("expected name 'x', got %q", assign.Name)
+	}
+	_, ok = assign.Value.(*NullLiteral)
+	if !ok {
+		t.Fatalf("expected NullLiteral, got %T", assign.Value)
+	}
+}
+
 func TestParser_IfWithComparison(t *testing.T) {
 	prog, errs := parse("if [1] == [1] { |> \"equal\" }")
 	if len(errs) > 0 {

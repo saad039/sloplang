@@ -30,3 +30,15 @@
 
 - **Postfix operators (`@`, `::`) need a separate parsing level.** They bind tighter than binary operators but follow primary/call expressions. Insert a `parsePostfix()` layer between `parseUnary()` and `parseCall()` that loops over `@` (index) and `::` (slice).
 - **Statement-level lookahead for index-set (`arr@i = val`).** Use `save()`/`restore()` to tentatively parse `ident@expr`, then check for `=`. If not found, backtrack and parse as a normal expression.
+- **Adding `@ident` as hashmap key access breaks existing `@variable` numeric indexing.** When Phase 5 hashmaps made `obj@ident` mean "string key access", existing code using `arr@idx` (where `idx` is a numeric index variable) broke. The fix: variable-based numeric indexing must use parentheses `arr@(idx)`. This required adding `TOKEN_LPAREN` handling to `parsePostfixPrimary()` and updating E2E tests that used the old bare-ident syntax.
+- **Hashmap statement-level lookahead must check three forms in order.** When parsing `ident@...`, check: (1) `@$ident =` for DynKeySetStmt, (2) `@ident =` for KeySetStmt, (3) `@expr =` for IndexSetStmt. Each failed check must restore. Use `p.pos != saved` to detect whether a prior branch already restored.
+
+## Runtime
+
+- **Null (`SlopNull`) needs explicit handling in every runtime operation.** The `default:` case in type switches catches unknown types, but the error message is generic. Add explicit `case SlopNull:` with descriptive panic messages like `"cannot perform arithmetic on null"`. This also applies to `IsTruthy`, `Negate`, `deepEqual`, comparison ops, and `Iterate`.
+- **Null equality is special.** `null == null` must be truthy, `null != non-null` must be truthy. Handle this before the normal type switch in `Eq`/`Neq` to avoid falling into the string/int comparison logic.
+
+## E2E Testing
+
+- **`##` and `@@` on single-key hashmaps return single-element SlopValues.** `str()` on a single-element SlopValue prints just the value (e.g., `"item"`) not `[item]`. When writing expected output for `str(##map)` or `str(@@map)` where the map has only one key, expect no brackets.
+- **HashDeclStmt re-declares the variable name with `:=`.** If you redeclare the same variable name via `m{a} = ...` then later `m{b} = ...`, Go codegen produces two `:=` for `m`, which fails compilation. Use different variable names in tests.

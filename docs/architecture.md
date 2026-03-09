@@ -44,14 +44,15 @@ The universal value type. Every sloplang value is a `SlopValue`:
 
 ```go
 type SlopValue struct {
-    Elements []any    // int64, uint64, float64, string, or *SlopValue
+    Elements []any    // int64, uint64, float64, string, *SlopValue, or SlopNull
     Keys     []string // parallel to Elements for hashmaps; nil for plain arrays
 }
 ```
 
-- `[]` (empty Elements) is falsy; everything else is truthy
+- `[]` (empty Elements) is falsy; everything else is truthy; `SlopNull` panics on truthiness check
 - `NewSlopValue(elems ...any)` constructs values
-- `FormatValue` renders: single-element → raw value (e.g. `7`), multi-element → `[1, 2, 3]`
+- `FormatValue` renders: single-element → raw value (e.g. `7`), multi-element → `[1, 2, 3]`, `SlopNull` → `null`
+- `SlopNull struct{}` — sentinel type for null values. Panics on arithmetic, truthiness, ordered comparisons, iteration. Supports `==`/`!=` and formatting.
 
 ### Token (`pkg/lexer/token.go`)
 
@@ -64,21 +65,21 @@ type Token struct {
 }
 ```
 
-Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithmetic, comparison, logical, array), delimiters, keywords, and return (`<-`).
+Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithmetic, comparison, logical, array), delimiters, keywords (`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`, `null`), and return (`<-`).
 
 ### AST Nodes (`pkg/parser/ast.go`)
 
 Two interfaces: `Stmt` (statements) and `Expr` (expressions).
 
-**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt
+**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynKeySetStmt
 
-**Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr
+**Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, NullLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr, KeyAccessExpr, DynKeyAccessExpr
 
 ## Lexer (`pkg/lexer/lexer.go`)
 
 Single-pass, character-by-character tokenizer. Key design decisions:
 
-- **Greedy multi-char matching:** `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`, `**`, `==`, `!=`, `<=`, `>=`, `<-`, `|>`, `||`, `&&` are checked before their single-char prefixes
+- **Greedy multi-char matching:** `##`, `@@`, `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`, `**`, `==`, `!=`, `<=`, `>=`, `<-`, `|>`, `||`, `&&` are checked before their single-char prefixes
 - **Keywords via map lookup:** `LookupIdent()` checks the `keywords` map, falling back to `TOKEN_IDENT`
 - **Number disambiguation:** digits followed by `u` → UINT, digits with `.` → FLOAT, else INT
 - **String escapes:** `\n`, `\t`, `\\`, `\"`
@@ -96,9 +97,9 @@ Recursive descent with Pratt-style precedence for expressions.
 4. `+`, `-`, `++`, `--`, `??`, `~@` (AddSub + array binary ops)
 5. `*`, `/`, `%` (MulDivMod)
 6. `**` (Power, right-associative)
-7. Unary: `-`, `!`, `#`, `~`, `>>` (prefix)
+7. Unary: `-`, `!`, `#`, `~`, `>>`, `##`, `@@` (prefix)
 8. Call: `name(args...)`
-9. Postfix: `@` (index), `::` (slice)
+9. Postfix: `@` (index / key access), `::` (slice)
 10. Primary: literals, identifiers, `(expr)`
 
 ### Statement dispatch
@@ -114,12 +115,20 @@ Recursive descent with Pratt-style precedence for expressions.
   - `,` → multi-assign
   - `=` → assign
   - `<<` → push statement
-  - `@` → lookahead for index-set (`arr@i = val`) vs expression
+  - `@` → lookahead for index-set / key-set / dyn-key-set vs expression
+  - `{` after ident → hashmap declaration (`name{k1, k2} = [v1, v2]`)
   - else → expression statement
 
-### Lookahead for index-set
+### Lookahead for index-set and key-set
 
-Uses `save()`/`restore()` to tentatively parse `ident@expr`. If followed by `=`, commits as `IndexSetStmt`. Otherwise backtracks and parses as expression.
+Uses `save()`/`restore()` to tentatively parse `ident@...`. If followed by `=`, commits as `IndexSetStmt`, `KeySetStmt`, or `DynKeySetStmt` depending on the `@` target. Otherwise backtracks and parses as expression.
+
+### Postfix `@` dispatch (tri-modal)
+
+The `@` operator in postfix position dispatches three ways:
+- `map@$var` → `DynKeyAccessExpr` (dynamic key via variable)
+- `map@name` (bare identifier) → `KeyAccessExpr` (literal string key)
+- `arr@(expr)` (parenthesized expression) → `IndexExpr` (numeric index)
 
 ## Codegen (`pkg/codegen/codegen.go`)
 
@@ -147,7 +156,10 @@ func main() {
 - **Unused variable suppression:** Every `:=` declaration followed by `_ = varName`
 - **Builtin dispatch:** `CallExpr` checks builtin map (`str` → `sloprt.Str`), else emits direct Go function call
 - **Binary op map:** Maps sloplang operators to runtime function names (e.g., `"+"` → `"Add"`, `"++"` → `"Concat"`)
-- **Unary op dispatch:** `-` → `Negate`, `!` → `Not`, `#` → `Length`, `~` → `Unique`
+- **Unary op dispatch:** `-` → `Negate`, `!` → `Not`, `#` → `Length`, `~` → `Unique`, `##` → `MapKeys`, `@@` → `MapValues`
+- **Hashmap declaration:** `HashDeclStmt` lowers to `sloprt.MapFromKeysValues` with a `[]string` composite literal for keys
+- **Key access/set:** `KeyAccessExpr`/`KeySetStmt` lower to `sloprt.IndexKeyStr`/`IndexKeySetStr`; `DynKeyAccessExpr`/`DynKeySetStmt` lower to `sloprt.IndexKey`/`IndexKeySet`
+- **Null literal:** `NullLiteral` lowers to `sloprt.NewSlopValue(sloprt.SlopNull{})`
 
 ## Runtime (`pkg/runtime/ops.go`)
 
@@ -177,6 +189,17 @@ All operations are functions that take/return `*SlopValue`:
 | `Contains(sv, val)` | No | Returns `[1]` or `[]` |
 | `Unique(sv)` | No | Returns deduplicated array |
 
+### Hashmap operations
+| Function | Mutates? | Description |
+|----------|----------|-------------|
+| `MapFromKeysValues(keys, vals)` | N/A | Creates hashmap with parallel Keys and Elements |
+| `IndexKeyStr(sv, key)` | No | Returns value for literal string key |
+| `IndexKey(sv, key)` | No | Returns value for dynamic key (SlopValue) |
+| `IndexKeySetStr(sv, key, val)` | Yes | Sets value for literal string key (appends if new) |
+| `IndexKeySet(sv, key, val)` | Yes | Sets value for dynamic key (SlopValue) |
+| `MapKeys(sv)` | No | Returns array of key strings |
+| `MapValues(sv)` | No | Returns array of values (Keys stripped) |
+
 ### Helpers
 - `Str(sv)` — converts to string representation
 - `Iterate(sv)` — returns `[]*SlopValue` for for-in loops
@@ -191,7 +214,7 @@ All operations are functions that take/return `*SlopValue`:
 | 2 | Arithmetic + Comparisons + Booleans | Done |
 | 3 | Functions + Return + Control Flow | Done |
 | 4 | Array Operators | Done |
-| 5 | Hashmaps | Planned |
+| 5 | Hashmaps | Done |
 | 6 | I/O (stdin + file) | Planned |
 | 7 | Error Handling Patterns | Planned |
 | 8 | Real Programs | Planned |

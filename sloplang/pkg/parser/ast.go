@@ -88,6 +88,12 @@ type Identifier struct {
 func (id *Identifier) exprNode()            {}
 func (id *Identifier) TokenLiteral() string { return id.Name }
 
+// NullLiteral represents: null
+type NullLiteral struct{}
+
+func (n *NullLiteral) exprNode()            {}
+func (n *NullLiteral) TokenLiteral() string { return "null" }
+
 // BinaryExpr represents: left op right
 type BinaryExpr struct {
 	Left  Expr
@@ -230,3 +236,51 @@ type IndexSetStmt struct {
 
 func (is *IndexSetStmt) stmtNode()            {}
 func (is *IndexSetStmt) TokenLiteral() string { return "@=" }
+
+// KeyAccessExpr represents: object@keyName (static key access)
+type KeyAccessExpr struct {
+	Object Expr
+	Key    string
+}
+
+func (ka *KeyAccessExpr) exprNode()            {}
+func (ka *KeyAccessExpr) TokenLiteral() string { return "@" }
+
+// DynKeyAccessExpr represents: object@$var (dynamic key access)
+type DynKeyAccessExpr struct {
+	Object Expr
+	KeyVar Expr
+}
+
+func (dk *DynKeyAccessExpr) exprNode()            {}
+func (dk *DynKeyAccessExpr) TokenLiteral() string { return "@$" }
+
+// HashDeclStmt represents: name{key1, key2} = value
+type HashDeclStmt struct {
+	Name  string
+	Keys  []string
+	Value Expr
+}
+
+func (hd *HashDeclStmt) stmtNode()            {}
+func (hd *HashDeclStmt) TokenLiteral() string { return "{" }
+
+// KeySetStmt represents: object@key = value (static key set)
+type KeySetStmt struct {
+	Object Expr
+	Key    string
+	Value  Expr
+}
+
+func (ks *KeySetStmt) stmtNode()            {}
+func (ks *KeySetStmt) TokenLiteral() string { return "@=" }
+
+// DynKeySetStmt represents: object@$var = value (dynamic key set)
+type DynKeySetStmt struct {
+	Object Expr
+	KeyVar Expr
+	Value  Expr
+}
+
+func (ds *DynKeySetStmt) stmtNode()            {}
+func (ds *DynKeySetStmt) TokenLiteral() string { return "@$=" }

@@ -51,10 +51,25 @@ person{name, age} = ["bob", [30]]
 counts{} = []
 ```
 
+### Null
+
+`null` represents an absent/placeholder value. It is strict:
+- `null == null` → `[1]` (truthy), `null != [5]` → `[1]`
+- Arithmetic, negation, truthiness checks, logical ops, ordered comparisons, and for-in iteration on null all **panic**
+- `str(null)` → `"null"`, `|> null` prints `null`
+- `#[null, null]` → `[2]` — length counts null elements normally
+- `[1, null] ?? null` → `[1]` — contains finds null
+
+```
+x = null              // forward declaration
+x = [null, null]      // array with null elements
+```
+
 ### Booleans
 
 - `[]` (empty array) is **falsy**
 - Everything else is **truthy** (including `[0]`)
+- `null` is **neither truthy nor falsy** — using it in `if` panics
 - `true` = `[1]`, `false` = `[]`
 
 ### Comments
@@ -143,7 +158,7 @@ No buffering on any I/O operation.
 
 ## Keywords
 
-`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`
+`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`, `null`
 
 ## Hashmap Declaration & Access
 

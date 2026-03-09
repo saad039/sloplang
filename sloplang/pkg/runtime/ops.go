@@ -15,6 +15,12 @@ func binaryOp(a, b *SlopValue, op func(x, y any) any) *SlopValue {
 	checkLengths(a, b)
 	result := make([]any, len(a.Elements))
 	for i := range a.Elements {
+		if _, ok := a.Elements[i].(SlopNull); ok {
+			panic("sloplang: cannot perform arithmetic on null")
+		}
+		if _, ok := b.Elements[i].(SlopNull); ok {
+			panic("sloplang: cannot perform arithmetic on null")
+		}
 		result[i] = op(a.Elements[i], b.Elements[i])
 	}
 	return &SlopValue{Elements: result}
@@ -189,6 +195,8 @@ func Negate(a *SlopValue) *SlopValue {
 	result := make([]any, len(a.Elements))
 	for i, elem := range a.Elements {
 		switch e := elem.(type) {
+		case SlopNull:
+			panic("sloplang: cannot negate null")
 		case int64:
 			result[i] = -e
 		case uint64:
@@ -281,31 +289,60 @@ func compareElems(a, b any) int {
 
 func Eq(a, b *SlopValue) *SlopValue {
 	checkSingleElement(a, b, "==")
+	_, aIsNull := a.Elements[0].(SlopNull)
+	_, bIsNull := b.Elements[0].(SlopNull)
+	if aIsNull && bIsNull {
+		return NewSlopValue(int64(1))
+	}
+	if aIsNull || bIsNull {
+		return &SlopValue{}
+	}
 	return boolResult(compareElems(a.Elements[0], b.Elements[0]) == 0)
 }
 
 func Neq(a, b *SlopValue) *SlopValue {
 	checkSingleElement(a, b, "!=")
+	_, aIsNull := a.Elements[0].(SlopNull)
+	_, bIsNull := b.Elements[0].(SlopNull)
+	if aIsNull && bIsNull {
+		return &SlopValue{}
+	}
+	if aIsNull || bIsNull {
+		return NewSlopValue(int64(1))
+	}
 	return boolResult(compareElems(a.Elements[0], b.Elements[0]) != 0)
+}
+
+func checkNullComparison(a, b *SlopValue) {
+	if _, ok := a.Elements[0].(SlopNull); ok {
+		panic("sloplang: cannot compare null with ordered operators")
+	}
+	if _, ok := b.Elements[0].(SlopNull); ok {
+		panic("sloplang: cannot compare null with ordered operators")
+	}
 }
 
 func Lt(a, b *SlopValue) *SlopValue {
 	checkSingleElement(a, b, "<")
+	checkNullComparison(a, b)
 	return boolResult(compareElems(a.Elements[0], b.Elements[0]) < 0)
 }
 
 func Gt(a, b *SlopValue) *SlopValue {
 	checkSingleElement(a, b, ">")
+	checkNullComparison(a, b)
 	return boolResult(compareElems(a.Elements[0], b.Elements[0]) > 0)
 }
 
 func Lte(a, b *SlopValue) *SlopValue {
 	checkSingleElement(a, b, "<=")
+	checkNullComparison(a, b)
 	return boolResult(compareElems(a.Elements[0], b.Elements[0]) <= 0)
 }
 
 func Gte(a, b *SlopValue) *SlopValue {
 	checkSingleElement(a, b, ">=")
+	checkNullComparison(a, b)
 	return boolResult(compareElems(a.Elements[0], b.Elements[0]) >= 0)
 }
 
@@ -335,8 +372,13 @@ func Str(a *SlopValue) *SlopValue {
 }
 
 // Iterate returns each element of a SlopValue as its own *SlopValue.
-// Used by for-in loops.
+// Used by for-in loops. Panics if the SlopValue is a single null element.
 func Iterate(sv *SlopValue) []*SlopValue {
+	if len(sv.Elements) == 1 {
+		if _, ok := sv.Elements[0].(SlopNull); ok {
+			panic("sloplang: cannot iterate over null")
+		}
+	}
 	result := make([]*SlopValue, len(sv.Elements))
 	for i, elem := range sv.Elements {
 		if nested, ok := elem.(*SlopValue); ok {
@@ -351,6 +393,9 @@ func Iterate(sv *SlopValue) []*SlopValue {
 // deepEqual compares two element values for structural equality.
 func deepEqual(a, b any) bool {
 	switch av := a.(type) {
+	case SlopNull:
+		_, ok := b.(SlopNull)
+		return ok
 	case int64:
 		bv, ok := b.(int64)
 		return ok && av == bv
@@ -537,6 +582,96 @@ func Unique(sv *SlopValue) *SlopValue {
 			elems = append(elems, e)
 		}
 	}
+	return &SlopValue{Elements: elems}
+}
+
+// MapFromKeysValues creates a SlopValue with named keys.
+// keys are the field names; vals contains the corresponding elements.
+// Panics if len(keys) != len(vals.Elements) and both are non-zero.
+func MapFromKeysValues(keys []string, vals *SlopValue) *SlopValue {
+	if len(keys) > 0 && len(vals.Elements) > 0 && len(keys) != len(vals.Elements) {
+		panic(fmt.Sprintf("sloplang: hashmap key count (%d) != value count (%d)", len(keys), len(vals.Elements)))
+	}
+	elems := make([]any, len(vals.Elements))
+	copy(elems, vals.Elements)
+	k := make([]string, len(keys))
+	copy(k, keys)
+	return &SlopValue{Elements: elems, Keys: k}
+}
+
+// IndexKeyStr finds key in sv.Keys and returns the corresponding element as *SlopValue.
+// Panics if the key is not found.
+func IndexKeyStr(sv *SlopValue, key string) *SlopValue {
+	for i, k := range sv.Keys {
+		if k == key {
+			elem := sv.Elements[i]
+			if nested, ok := elem.(*SlopValue); ok {
+				return nested
+			}
+			return NewSlopValue(elem)
+		}
+	}
+	panic(fmt.Sprintf("sloplang: key %q not found in hashmap", key))
+}
+
+// IndexKey extracts a string key from key (must be single-element string) and calls IndexKeyStr.
+func IndexKey(sv *SlopValue, key *SlopValue) *SlopValue {
+	if len(key.Elements) != 1 {
+		panic("sloplang: dynamic key must be a single-element string array")
+	}
+	s, ok := key.Elements[0].(string)
+	if !ok {
+		panic(fmt.Sprintf("sloplang: dynamic key must be string, got %T", key.Elements[0]))
+	}
+	return IndexKeyStr(sv, s)
+}
+
+// IndexKeySetStr sets or adds a key-value pair in a hashmap. Mutates sv. Returns sv.
+// If key exists, updates the corresponding element. If not, appends key and element.
+func IndexKeySetStr(sv *SlopValue, key string, val *SlopValue) *SlopValue {
+	for i, k := range sv.Keys {
+		if k == key {
+			sv.Elements[i] = val
+			return sv
+		}
+	}
+	// Key not found — append
+	sv.Keys = append(sv.Keys, key)
+	sv.Elements = append(sv.Elements, val)
+	return sv
+}
+
+// IndexKeySet extracts a string key from key and calls IndexKeySetStr.
+func IndexKeySet(sv *SlopValue, key *SlopValue, val *SlopValue) *SlopValue {
+	if len(key.Elements) != 1 {
+		panic("sloplang: dynamic key must be a single-element string array")
+	}
+	s, ok := key.Elements[0].(string)
+	if !ok {
+		panic(fmt.Sprintf("sloplang: dynamic key must be string, got %T", key.Elements[0]))
+	}
+	return IndexKeySetStr(sv, s, val)
+}
+
+// MapKeys returns a new SlopValue with each key as a string element.
+func MapKeys(sv *SlopValue) *SlopValue {
+	if sv.Keys == nil {
+		return NewSlopValue()
+	}
+	elems := make([]any, len(sv.Keys))
+	for i, k := range sv.Keys {
+		elems[i] = k
+	}
+	return &SlopValue{Elements: elems}
+}
+
+// MapValues returns a new SlopValue with the same elements but no keys.
+func MapValues(sv *SlopValue) *SlopValue {
+	if sv.Keys == nil {
+		return NewSlopValue()
+	}
+	elems := make([]any, len(sv.Elements))
+	copy(elems, sv.Elements)
 	return &SlopValue{Elements: elems}
 }
 

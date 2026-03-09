@@ -45,32 +45,82 @@ func (p *Parser) parseStatement() Stmt {
 	case lexer.TOKEN_PIPE_GT:
 		return p.parseStdoutWriteStatement()
 	case lexer.TOKEN_IDENT:
-		// Disambiguate: push (a << ...), index-set (a@i = ...), multi-assign, single assign, or bare expression
+		// Disambiguate: hashmap decl (a{...} = ...), push (a << ...), index-set/key-set (a@... = ...), multi-assign, single assign, or bare expression
+		if p.peekToken().Type == lexer.TOKEN_LBRACE {
+			return p.parseHashDeclStmt()
+		}
 		if p.peekToken().Type == lexer.TOKEN_LSHIFT {
 			return p.parsePushStmt()
 		}
 		if p.peekToken().Type == lexer.TOKEN_AT {
-			// Could be index-set (a@i = val) or expression (a@i used as value)
+			// Could be key-set (a@key = val), dyn-key-set (a@$var = val), index-set (a@i = val), or expression
 			saved := p.save()
 			savedErrors := len(p.errors)
 			name := p.curToken().Literal
 			p.advance() // consume ident
 			p.advance() // consume @
-			idx := p.parsePostfixPrimary()
-			if idx != nil && p.curToken().Type == lexer.TOKEN_ASSIGN {
-				p.advance() // consume =
-				val := p.parseExpression()
-				if val != nil {
-					return &IndexSetStmt{
-						Object: &Identifier{Name: name},
-						Index:  idx,
-						Value:  val,
+
+			// Check for dynamic key set: ident @ $ ident =
+			if p.curToken().Type == lexer.TOKEN_DOLLAR {
+				p.advance() // consume $
+				if p.curToken().Type == lexer.TOKEN_IDENT {
+					keyVarName := p.curToken().Literal
+					p.advance() // consume key ident
+					if p.curToken().Type == lexer.TOKEN_ASSIGN {
+						p.advance() // consume =
+						val := p.parseExpression()
+						if val != nil {
+							return &DynKeySetStmt{
+								Object: &Identifier{Name: name},
+								KeyVar: &Identifier{Name: keyVarName},
+								Value:  val,
+							}
+						}
 					}
 				}
+				// Not a dyn-key-set; restore
+				p.restore(saved)
+				p.errors = p.errors[:savedErrors]
+			} else if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type != lexer.TOKEN_LPAREN {
+				// Check for static key set: ident @ ident =
+				keyName := p.curToken().Literal
+				p.advance() // consume key ident
+				if p.curToken().Type == lexer.TOKEN_ASSIGN {
+					p.advance() // consume =
+					val := p.parseExpression()
+					if val != nil {
+						return &KeySetStmt{
+							Object: &Identifier{Name: name},
+							Key:    keyName,
+							Value:  val,
+						}
+					}
+				}
+				// Not a key-set; restore
+				p.restore(saved)
+				p.errors = p.errors[:savedErrors]
 			}
-			// Not an index-set; restore and parse as expression
-			p.restore(saved)
-			p.errors = p.errors[:savedErrors]
+
+			// If we haven't restored yet, we're still advanced past ident and @
+			// Need to check if we're already restored or not
+			if p.pos != saved {
+				// We're still past @; try index-set: ident @ expr =
+				idx := p.parsePostfixPrimary()
+				if idx != nil && p.curToken().Type == lexer.TOKEN_ASSIGN {
+					p.advance() // consume =
+					val := p.parseExpression()
+					if val != nil {
+						return &IndexSetStmt{
+							Object: &Identifier{Name: name},
+							Index:  idx,
+							Value:  val,
+						}
+					}
+				}
+				// Not an index-set; restore and parse as expression
+				p.restore(saved)
+				p.errors = p.errors[:savedErrors]
+			}
 		}
 		if p.peekToken().Type == lexer.TOKEN_COMMA {
 			return p.parseMultiAssign()
@@ -84,8 +134,8 @@ func (p *Parser) parseStatement() Stmt {
 			return nil
 		}
 		return &ExprStmt{Expr: expr}
-	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE:
-		// Prefix operators that start expression statements
+	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE, lexer.TOKEN_DOUBLE_HASH, lexer.TOKEN_DOUBLE_AT, lexer.TOKEN_NULL:
+		// Prefix operators and literals that start expression statements
 		expr := p.parseExpression()
 		if expr == nil {
 			return nil
@@ -315,6 +365,50 @@ func (p *Parser) parseMultiAssign() *MultiAssignStmt {
 	return &MultiAssignStmt{Names: names, Value: value}
 }
 
+func (p *Parser) parseHashDeclStmt() *HashDeclStmt {
+	name := p.curToken().Literal
+	p.advance() // consume ident
+	p.advance() // consume '{'
+
+	var keys []string
+	if p.curToken().Type != lexer.TOKEN_RBRACE {
+		if p.curToken().Type != lexer.TOKEN_IDENT {
+			p.addError("expected key name, got %s at line %d", p.curToken().Type, p.curToken().Line)
+			return nil
+		}
+		keys = append(keys, p.curToken().Literal)
+		p.advance()
+		for p.curToken().Type == lexer.TOKEN_COMMA {
+			p.advance() // consume ','
+			if p.curToken().Type != lexer.TOKEN_IDENT {
+				p.addError("expected key name, got %s at line %d", p.curToken().Type, p.curToken().Line)
+				return nil
+			}
+			keys = append(keys, p.curToken().Literal)
+			p.advance()
+		}
+	}
+
+	if p.curToken().Type != lexer.TOKEN_RBRACE {
+		p.addError("expected '}', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume '}'
+
+	if p.curToken().Type != lexer.TOKEN_ASSIGN {
+		p.addError("expected '=', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume '='
+
+	value := p.parseExpression()
+	if value == nil {
+		return nil
+	}
+
+	return &HashDeclStmt{Name: name, Keys: keys, Value: value}
+}
+
 func (p *Parser) parseExpression() Expr {
 	return p.parseOr()
 }
@@ -454,6 +548,16 @@ func (p *Parser) parseUnary() Expr {
 		}
 		return &UnaryExpr{Op: op, Operand: operand}
 	}
+	if p.curToken().Type == lexer.TOKEN_DOUBLE_HASH ||
+		p.curToken().Type == lexer.TOKEN_DOUBLE_AT {
+		op := p.curToken().Literal
+		p.advance()
+		operand := p.parseUnary()
+		if operand == nil {
+			return nil
+		}
+		return &UnaryExpr{Op: op, Operand: operand}
+	}
 	if p.curToken().Type == lexer.TOKEN_RSHIFT {
 		p.advance() // consume >>
 		operand := p.parseUnary()
@@ -480,6 +584,18 @@ func (p *Parser) parsePostfixPrimary() Expr {
 		return p.parseArrayLiteral()
 	case lexer.TOKEN_STRING:
 		return p.parseStringLiteral()
+	case lexer.TOKEN_LPAREN:
+		p.advance() // consume '('
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil
+		}
+		if p.curToken().Type != lexer.TOKEN_RPAREN {
+			p.addError("expected ')' in postfix expression, got %s at line %d", p.curToken().Type, p.curToken().Line)
+			return nil
+		}
+		p.advance() // consume ')'
+		return expr
 	default:
 		p.addError("unexpected token %s (%q) in postfix expression at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)
 		return nil
@@ -494,11 +610,25 @@ func (p *Parser) parsePostfix() Expr {
 	for {
 		if p.curToken().Type == lexer.TOKEN_AT {
 			p.advance() // consume @
-			idx := p.parsePostfixPrimary()
-			if idx == nil {
-				return nil
+			// Check for dynamic key access: @$ident
+			if p.curToken().Type == lexer.TOKEN_DOLLAR && p.peekToken().Type == lexer.TOKEN_IDENT {
+				p.advance() // consume $
+				keyVarName := p.curToken().Literal
+				p.advance() // consume ident
+				expr = &DynKeyAccessExpr{Object: expr, KeyVar: &Identifier{Name: keyVarName}}
+			} else if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type != lexer.TOKEN_LPAREN {
+				// Static key access: @ident (but not @ident( which is a function call)
+				keyName := p.curToken().Literal
+				p.advance() // consume ident
+				expr = &KeyAccessExpr{Object: expr, Key: keyName}
+			} else {
+				// Numeric/expression index access
+				idx := p.parsePostfixPrimary()
+				if idx == nil {
+					return nil
+				}
+				expr = &IndexExpr{Object: expr, Index: idx}
 			}
-			expr = &IndexExpr{Object: expr, Index: idx}
 		} else if p.curToken().Type == lexer.TOKEN_DCOLON {
 			p.advance() // consume first ::
 			low := p.parsePostfixPrimary()
@@ -579,6 +709,9 @@ func (p *Parser) parsePrimary() Expr {
 		return p.parseIdentifier()
 	case lexer.TOKEN_TRUE, lexer.TOKEN_FALSE:
 		return p.parseBoolLiteral()
+	case lexer.TOKEN_NULL:
+		p.advance()
+		return &NullLiteral{}
 	default:
 		p.addError("unexpected token %s (%q) in expression at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)
 		return nil
@@ -667,6 +800,14 @@ func (p *Parser) curToken() lexer.Token {
 
 func (p *Parser) advance() {
 	p.pos++
+}
+
+func (p *Parser) peekTokenAt(offset int) lexer.Token {
+	idx := p.pos + offset
+	if idx >= len(p.tokens) {
+		return lexer.Token{Type: lexer.TOKEN_EOF}
+	}
+	return p.tokens[idx]
 }
 
 func (p *Parser) save() int       { return p.pos }

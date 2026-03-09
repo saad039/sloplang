@@ -505,6 +505,112 @@ func TestLexer_PushExpr(t *testing.T) {
 	}
 }
 
+func TestLexer_DoubleHashToken(t *testing.T) {
+	l := New(`##map`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_DOUBLE_HASH, "##"}, {TOKEN_IDENT, "map"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_DoubleAtToken(t *testing.T) {
+	l := New(`@@map`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_DOUBLE_AT, "@@"}, {TOKEN_IDENT, "map"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_DollarToken(t *testing.T) {
+	l := New(`$key`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_DOLLAR, "$"}, {TOKEN_IDENT, "key"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_HashmapOperatorDisambiguation(t *testing.T) {
+	l := New(`# ## @ @@ $`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_HASH, "#"}, {TOKEN_DOUBLE_HASH, "##"},
+		{TOKEN_AT, "@"}, {TOKEN_DOUBLE_AT, "@@"},
+		{TOKEN_DOLLAR, "$"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_NullKeyword(t *testing.T) {
+	l := New(`null`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_NULL, "null"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_NullAssignment(t *testing.T) {
+	l := New(`x = null`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IDENT, "x"},
+		{TOKEN_ASSIGN, "="},
+		{TOKEN_NULL, "null"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
 func TestLexer_ForIn(t *testing.T) {
 	l := New(`for x in items { |> str(x) }`)
 	expected := []struct {

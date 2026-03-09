@@ -52,16 +52,19 @@ const (
 	TOKEN_RETURN // <-
 
 	// Array operators
-	TOKEN_AT       // @
-	TOKEN_HASH     // #
-	TOKEN_LSHIFT   // <<
-	TOKEN_RSHIFT   // >>
-	TOKEN_TILDE_AT // ~@
-	TOKEN_DCOLON   // ::
-	TOKEN_CONCAT   // ++
-	TOKEN_REMOVE   // --
-	TOKEN_TILDE    // ~
-	TOKEN_CONTAINS // ??
+	TOKEN_AT          // @
+	TOKEN_HASH        // #
+	TOKEN_LSHIFT      // <<
+	TOKEN_RSHIFT      // >>
+	TOKEN_TILDE_AT    // ~@
+	TOKEN_DCOLON      // ::
+	TOKEN_CONCAT      // ++
+	TOKEN_REMOVE      // --
+	TOKEN_TILDE       // ~
+	TOKEN_CONTAINS    // ??
+	TOKEN_DOUBLE_HASH // ##
+	TOKEN_DOUBLE_AT   // @@
+	TOKEN_DOLLAR      // $
 
 	// Keywords
 	TOKEN_TRUE  // true
@@ -72,59 +75,64 @@ const (
 	TOKEN_FOR   // for
 	TOKEN_IN    // in
 	TOKEN_BREAK // break
+	TOKEN_NULL  // null
 )
 
 var tokenNames = map[TokenType]string{
-	TOKEN_EOF:      "EOF",
-	TOKEN_ILLEGAL:  "ILLEGAL",
-	TOKEN_INT:      "INT",
-	TOKEN_UINT:     "UINT",
-	TOKEN_FLOAT:    "FLOAT",
-	TOKEN_STRING:   "STRING",
-	TOKEN_IDENT:    "IDENT",
-	TOKEN_ASSIGN:   "ASSIGN",
-	TOKEN_PIPE_GT:  "PIPE_GT",
-	TOKEN_LBRACKET: "LBRACKET",
-	TOKEN_RBRACKET: "RBRACKET",
-	TOKEN_COMMA:    "COMMA",
-	TOKEN_PLUS:     "PLUS",
-	TOKEN_MINUS:    "MINUS",
-	TOKEN_STAR:     "STAR",
-	TOKEN_SLASH:    "SLASH",
-	TOKEN_PERCENT:  "PERCENT",
-	TOKEN_POWER:    "POWER",
-	TOKEN_EQ:       "EQ",
-	TOKEN_NEQ:      "NEQ",
-	TOKEN_LT:       "LT",
-	TOKEN_GT:       "GT",
-	TOKEN_LTE:      "LTE",
-	TOKEN_GTE:      "GTE",
-	TOKEN_AND:      "AND",
-	TOKEN_OR:       "OR",
-	TOKEN_NOT:      "NOT",
-	TOKEN_LPAREN:   "LPAREN",
-	TOKEN_RPAREN:   "RPAREN",
-	TOKEN_LBRACE:   "LBRACE",
-	TOKEN_RBRACE:   "RBRACE",
-	TOKEN_RETURN:   "RETURN",
-	TOKEN_AT:       "AT",
-	TOKEN_HASH:     "HASH",
-	TOKEN_LSHIFT:   "LSHIFT",
-	TOKEN_RSHIFT:   "RSHIFT",
-	TOKEN_TILDE_AT: "TILDE_AT",
-	TOKEN_DCOLON:   "DCOLON",
-	TOKEN_CONCAT:   "CONCAT",
-	TOKEN_REMOVE:   "REMOVE",
-	TOKEN_TILDE:    "TILDE",
-	TOKEN_CONTAINS: "CONTAINS",
-	TOKEN_TRUE:     "TRUE",
-	TOKEN_FALSE:    "FALSE",
-	TOKEN_FN:       "FN",
-	TOKEN_IF:       "IF",
-	TOKEN_ELSE:     "ELSE",
-	TOKEN_FOR:      "FOR",
-	TOKEN_IN:       "IN",
-	TOKEN_BREAK:    "BREAK",
+	TOKEN_EOF:         "EOF",
+	TOKEN_ILLEGAL:     "ILLEGAL",
+	TOKEN_INT:         "INT",
+	TOKEN_UINT:        "UINT",
+	TOKEN_FLOAT:       "FLOAT",
+	TOKEN_STRING:      "STRING",
+	TOKEN_IDENT:       "IDENT",
+	TOKEN_ASSIGN:      "ASSIGN",
+	TOKEN_PIPE_GT:     "PIPE_GT",
+	TOKEN_LBRACKET:    "LBRACKET",
+	TOKEN_RBRACKET:    "RBRACKET",
+	TOKEN_COMMA:       "COMMA",
+	TOKEN_PLUS:        "PLUS",
+	TOKEN_MINUS:       "MINUS",
+	TOKEN_STAR:        "STAR",
+	TOKEN_SLASH:       "SLASH",
+	TOKEN_PERCENT:     "PERCENT",
+	TOKEN_POWER:       "POWER",
+	TOKEN_EQ:          "EQ",
+	TOKEN_NEQ:         "NEQ",
+	TOKEN_LT:          "LT",
+	TOKEN_GT:          "GT",
+	TOKEN_LTE:         "LTE",
+	TOKEN_GTE:         "GTE",
+	TOKEN_AND:         "AND",
+	TOKEN_OR:          "OR",
+	TOKEN_NOT:         "NOT",
+	TOKEN_LPAREN:      "LPAREN",
+	TOKEN_RPAREN:      "RPAREN",
+	TOKEN_LBRACE:      "LBRACE",
+	TOKEN_RBRACE:      "RBRACE",
+	TOKEN_RETURN:      "RETURN",
+	TOKEN_AT:          "AT",
+	TOKEN_HASH:        "HASH",
+	TOKEN_LSHIFT:      "LSHIFT",
+	TOKEN_RSHIFT:      "RSHIFT",
+	TOKEN_TILDE_AT:    "TILDE_AT",
+	TOKEN_DCOLON:      "DCOLON",
+	TOKEN_CONCAT:      "CONCAT",
+	TOKEN_REMOVE:      "REMOVE",
+	TOKEN_TILDE:       "TILDE",
+	TOKEN_CONTAINS:    "CONTAINS",
+	TOKEN_DOUBLE_HASH: "DOUBLE_HASH",
+	TOKEN_DOUBLE_AT:   "DOUBLE_AT",
+	TOKEN_DOLLAR:      "DOLLAR",
+	TOKEN_TRUE:        "TRUE",
+	TOKEN_FALSE:       "FALSE",
+	TOKEN_FN:          "FN",
+	TOKEN_IF:          "IF",
+	TOKEN_ELSE:        "ELSE",
+	TOKEN_FOR:         "FOR",
+	TOKEN_IN:          "IN",
+	TOKEN_BREAK:       "BREAK",
+	TOKEN_NULL:        "NULL",
 }
 
 func (t TokenType) String() string {
@@ -151,6 +159,7 @@ var keywords = map[string]TokenType{
 	"for":   TOKEN_FOR,
 	"in":    TOKEN_IN,
 	"break": TOKEN_BREAK,
+	"null":  TOKEN_NULL,
 }
 
 // LookupIdent returns the token type for an identifier, checking keywords first.

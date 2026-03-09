@@ -1,6 +1,56 @@
-x = [10, 20] + [3, 4]
+// Numeric types
+x = [42]
+y = [42u]
+z = [3.14]
 |> str(x)
-y = [5] > [3]
 |> str(y)
-z = -[1, 2, 3]
 |> str(z)
+
+// Arithmetic: +, -, *, /, %, **
+a = [10, 20] + [3, 4]
+|> str(a)
+b = [10, 20] - [3, 4]
+|> str(b)
+c = [2, 3] * [4, 5]
+|> str(c)
+d = [10, 6] / [2, 3]
+|> str(d)
+e = [7, 5] % [3, 2]
+|> str(e)
+f = [2, 3] ** [3, 2]
+|> str(f)
+
+// Unary negation
+neg = -[1, 2, 3]
+|> str(neg)
+
+// Float arithmetic
+fa = [3.14] + [2.86]
+|> str(fa)
+
+// Uint arithmetic
+ua = [10u] + [5u]
+|> str(ua)
+
+// Comparisons: ==, !=, <, >, <=, >=
+|> str([2] == [2])
+|> str([2] != [3])
+|> str([1] < [2])
+|> str([2] > [1])
+|> str([1] <= [1])
+|> str([2] >= [1])
+
+// Logical: &&, ||, !
+|> str([1] && [1])
+|> str([] || [1])
+|> str(![])
+
+// true and false keywords
+|> str(true)
+|> str(false)
+if true {
+    |> "true is truthy"
+}
+if !false {
+    |> "false is falsy"
+}

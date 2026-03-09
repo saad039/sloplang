@@ -1,15 +1,56 @@
+// Function declaration and return
 fn add(a, b) {
     <- a + b
 }
-
 result = add([3], [4])
 |> str(result)
 
-if [1] == [1] {
-    |> "equal"
+// Nested function calls
+fn double(x) {
+    <- x * [2]
+}
+|> str(double(add([1], [2])))
+
+// if/else branching
+score = [85]
+if score >= [90] {
+    |> "A"
+} else {
+    if score >= [80] {
+        |> "B"
+    } else {
+        |> "C"
+    }
 }
 
+// for-in loop
 items = [10, 20, 30]
 for item in items {
     |> str(item)
 }
+
+// Infinite for loop with break
+i = [0]
+for {
+    if i == [5] {
+        break
+    }
+    |> str(i)
+    i = i + [1]
+}
+
+// Multi-assign
+pair = [[1], [2]]
+a, b = pair
+|> str(a)
+|> str(b)
+
+// Function returning early
+fn abs(x) {
+    if x < [0] {
+        <- -x
+    }
+    <- x
+}
+|> str(abs(-[7]))
+|> str(abs([3]))

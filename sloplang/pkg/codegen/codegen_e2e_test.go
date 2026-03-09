@@ -1939,7 +1939,7 @@ arr@1 = [99]
 func TestE2E_IndexSetVarIndex(t *testing.T) {
 	got := runE2E(t, `arr = [10, 20, 30]
 idx = [2]
-arr@idx = [99]
+arr@(idx) = [99]
 |> str(arr)`)
 	if got != "[10, 20, 99]" {
 		t.Fatalf("expected %q, got %q", "[10, 20, 99]", got)
@@ -2329,7 +2329,7 @@ func TestE2E_FnWithArrayManip(t *testing.T) {
 		if i < [0] {
 			break
 		}
-		result << arr@i
+		result << arr@(i)
 		i = i - [1]
 	}
 	<- result
@@ -2418,5 +2418,549 @@ uniq = ~[1, 2, 2, 3, 1]
 	expected := "10\n4\n[10, 20, 30, 40, 50]\n[20, 30]\n[1, 2, 3, 4]\n1\n[1, 2, 3]"
 	if got != expected {
 		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+// === Phase 5 E2E Tests — Hashmaps ===
+
+// --- Hashmap declaration (5 tests) ---
+
+func TestE2E_HashDecl_TwoKeys(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> person@name
+|> str(person@age)`)
+	if got != "bob\n30" {
+		t.Fatalf("expected %q, got %q", "bob\n30", got)
+	}
+}
+
+func TestE2E_HashDecl_OneKey(t *testing.T) {
+	got := runE2E(t, `data{x} = [[42]]
+|> str(data@x)`)
+	if got != "42" {
+		t.Fatalf("expected %q, got %q", "42", got)
+	}
+}
+
+func TestE2E_HashDecl_Empty(t *testing.T) {
+	got := runE2E(t, `counts{} = []
+|> str(##counts)`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_HashDecl_ThreeKeys(t *testing.T) {
+	got := runE2E(t, `rgb{r, g, b} = [[255], [128], [0]]
+|> str(rgb@r)
+|> str(rgb@g)
+|> str(rgb@b)`)
+	if got != "255\n128\n0" {
+		t.Fatalf("expected %q, got %q", "255\n128\n0", got)
+	}
+}
+
+func TestE2E_HashDecl_MismatchPanic(t *testing.T) {
+	runE2EExpectPanic(t, `bad{a, b, c} = [[1], [2]]`)
+}
+
+// --- Key access — literal (5 tests) ---
+
+func TestE2E_KeyAccessLit_StringVal(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> person@name`)
+	if got != "bob" {
+		t.Fatalf("expected %q, got %q", "bob", got)
+	}
+}
+
+func TestE2E_KeyAccessLit_NestedSlopValue(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> str(person@age)`)
+	if got != "30" {
+		t.Fatalf("expected %q, got %q", "30", got)
+	}
+}
+
+func TestE2E_KeyAccessLit_AfterKeySet(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+person@age = [31]
+|> str(person@age)`)
+	if got != "31" {
+		t.Fatalf("expected %q, got %q", "31", got)
+	}
+}
+
+func TestE2E_KeyAccessLit_MultipleAccesses(t *testing.T) {
+	got := runE2E(t, `config{host, port, debug} = ["localhost", [8080], [1]]
+|> config@host
+|> str(config@port)
+|> str(config@debug)`)
+	if got != "localhost\n8080\n1" {
+		t.Fatalf("expected %q, got %q", "localhost\n8080\n1", got)
+	}
+}
+
+func TestE2E_KeyAccessLit_NonExistentPanic(t *testing.T) {
+	runE2EExpectPanic(t, `person{name, age} = ["bob", [30]]
+|> person@email`)
+}
+
+// --- Key access — dynamic (4 tests) ---
+
+func TestE2E_KeyAccessDyn_Basic(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+which = "name"
+|> person@$which`)
+	if got != "bob" {
+		t.Fatalf("expected %q, got %q", "bob", got)
+	}
+}
+
+func TestE2E_KeyAccessDyn_DifferentKeys(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+k1 = "name"
+k2 = "age"
+|> person@$k1
+|> str(person@$k2)`)
+	if got != "bob\n30" {
+		t.Fatalf("expected %q, got %q", "bob\n30", got)
+	}
+}
+
+func TestE2E_KeyAccessDyn_InLoop(t *testing.T) {
+	got := runE2E(t, `data{x, y} = [[10], [20]]
+for k in ##data {
+	|> str(data@$k)
+}`)
+	if got != "10\n20" {
+		t.Fatalf("expected %q, got %q", "10\n20", got)
+	}
+}
+
+func TestE2E_KeyAccessDyn_AfterDynSet(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+key = "age"
+person@$key = [31]
+|> str(person@$key)`)
+	if got != "31" {
+		t.Fatalf("expected %q, got %q", "31", got)
+	}
+}
+
+// --- Key set — literal (4 tests) ---
+
+func TestE2E_KeySetLit_Existing(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+person@age = [31]
+|> str(person@age)`)
+	if got != "31" {
+		t.Fatalf("expected %q, got %q", "31", got)
+	}
+}
+
+func TestE2E_KeySetLit_AddNew(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+person@email = "bob@test.com"
+|> person@email`)
+	if got != "bob@test.com" {
+		t.Fatalf("expected %q, got %q", "bob@test.com", got)
+	}
+}
+
+func TestE2E_KeySetLit_SetThenReadMultiple(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+person@age = [31]
+person@email = "bob@test.com"
+|> person@name
+|> str(person@age)
+|> person@email`)
+	if got != "bob\n31\nbob@test.com" {
+		t.Fatalf("expected %q, got %q", "bob\n31\nbob@test.com", got)
+	}
+}
+
+func TestE2E_KeySetLit_InIfBlock(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+if [1] == [1] {
+	person@age = [99]
+}
+|> str(person@age)`)
+	if got != "99" {
+		t.Fatalf("expected %q, got %q", "99", got)
+	}
+}
+
+// --- Key set — dynamic (3 tests) ---
+
+func TestE2E_KeySetDyn_Basic(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+key = "age"
+person@$key = [31]
+|> str(person@age)`)
+	if got != "31" {
+		t.Fatalf("expected %q, got %q", "31", got)
+	}
+}
+
+func TestE2E_KeySetDyn_AddNewKey(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+key = "email"
+person@$key = "new@test.com"
+|> person@email`)
+	if got != "new@test.com" {
+		t.Fatalf("expected %q, got %q", "new@test.com", got)
+	}
+}
+
+func TestE2E_KeySetDyn_InLoopBuildMap(t *testing.T) {
+	got := runE2E(t, `result{} = []
+keys = ["a", "b", "c"]
+vals = [[1], [2], [3]]
+i = [0]
+for k in keys {
+	result@$k = vals@(i)
+	i = i + [1]
+}
+|> str(##result)
+|> str(@@result)`)
+	if got != "[a, b, c]\n[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[a, b, c]\n[1, 2, 3]", got)
+	}
+}
+
+// --- Keys prefix ## (4 tests) ---
+
+func TestE2E_MapKeys_Basic(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> str(##person)`)
+	if got != "[name, age]" {
+		t.Fatalf("expected %q, got %q", "[name, age]", got)
+	}
+}
+
+func TestE2E_MapKeys_Empty(t *testing.T) {
+	got := runE2E(t, `empty{} = []
+|> str(##empty)`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_MapKeys_IterateKeys(t *testing.T) {
+	got := runE2E(t, `data{x, y} = [[10], [20]]
+for k in ##data {
+	|> k
+}`)
+	if got != "x\ny" {
+		t.Fatalf("expected %q, got %q", "x\ny", got)
+	}
+}
+
+func TestE2E_MapKeys_Length(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> str(#(##person))`)
+	if got != "2" {
+		t.Fatalf("expected %q, got %q", "2", got)
+	}
+}
+
+// --- Values prefix @@ (3 tests) ---
+
+func TestE2E_MapValues_Basic(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> str(@@person)`)
+	if got != "[bob, 30]" {
+		t.Fatalf("expected %q, got %q", "[bob, 30]", got)
+	}
+}
+
+func TestE2E_MapValues_Empty(t *testing.T) {
+	got := runE2E(t, `empty{} = []
+|> str(@@empty)`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_MapValues_ForIn(t *testing.T) {
+	got := runE2E(t, `data{a, b, c} = [[1], [2], [3]]
+for v in @@data {
+	|> str(v)
+}`)
+	if got != "1\n2\n3" {
+		t.Fatalf("expected %q, got %q", "1\n2\n3", got)
+	}
+}
+
+// --- Combined / integration (7 tests) ---
+
+func TestE2E_MapsSlopExample(t *testing.T) {
+	src := `person{name, age} = ["bob", [30]]
+|> person@name
+|> str(person@age)
+
+person@age = [31]
+|> str(person@age)
+
+person@email = "bob@test.com"
+|> person@email
+
+ks = ##person
+|> str(ks)
+
+vs = @@person
+|> str(vs)`
+	got := runE2E(t, src)
+	expected := "bob\n30\n31\nbob@test.com\n[name, age, email]\n[bob, 31, bob@test.com]"
+	if got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestE2E_HashInsideFn(t *testing.T) {
+	got := runE2E(t, `fn makePoint(x, y) {
+	pt{x, y} = [x, y]
+	<- pt
+}
+p = makePoint([10], [20])
+|> str(p)`)
+	// makePoint returns the hashmap; str() on it shows values
+	// Note: SlopValue with keys formats as an array of its elements
+	if got != "[10, 20]" {
+		t.Fatalf("expected %q, got %q", "[10, 20]", got)
+	}
+}
+
+func TestE2E_FnReturnsHashCallerAccesses(t *testing.T) {
+	got := runE2E(t, `fn makePerson(n, a) {
+	p{name, age} = [n, a]
+	<- p
+}
+person = makePerson("alice", [25])
+|> person@name
+|> str(person@age)`)
+	if got != "alice\n25" {
+		t.Fatalf("expected %q, got %q", "alice\n25", got)
+	}
+}
+
+func TestE2E_CountPattern(t *testing.T) {
+	got := runE2E(t, `counts{} = []
+items = ["a", "b", "a", "c", "b", "a"]
+for item in items {
+	found = [0]
+	for k in ##counts {
+		if k == item {
+			found = [1]
+			counts@$k = counts@$k + [1]
+		}
+	}
+	if found == [0] {
+		counts@$item = [1]
+	}
+}
+|> str(counts@a)
+|> str(counts@b)
+|> str(counts@c)`)
+	if got != "3\n2\n1" {
+		t.Fatalf("expected %q, got %q", "3\n2\n1", got)
+	}
+}
+
+func TestE2E_HashWithArrayValues(t *testing.T) {
+	got := runE2E(t, `data{nums, labels} = [[1, 2, 3], ["x", "y", "z"]]
+|> str(data@nums)
+|> str(data@labels)`)
+	if got != "[1, 2, 3]\n[x, y, z]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]\n[x, y, z]", got)
+	}
+}
+
+func TestE2E_KeyFromFnResultDynAccess(t *testing.T) {
+	got := runE2E(t, `fn getKey() {
+	<- "age"
+}
+person{name, age} = ["bob", [30]]
+k = getKey()
+|> str(person@$k)`)
+	if got != "30" {
+		t.Fatalf("expected %q, got %q", "30", got)
+	}
+}
+
+func TestE2E_HashMultipleOpsSequence(t *testing.T) {
+	got := runE2E(t, `config{host, port} = ["localhost", [8080]]
+|> config@host
+config@port = [9090]
+config@debug = [1]
+|> str(config@port)
+|> str(config@debug)
+|> str(##config)
+|> str(@@config)`)
+	if got != "localhost\n9090\n1\n[host, port, debug]\n[localhost, 9090, 1]" {
+		t.Fatalf("expected %q, got %q", "localhost\n9090\n1\n[host, port, debug]\n[localhost, 9090, 1]", got)
+	}
+}
+
+// --- Edge cases (5 tests) ---
+
+func TestE2E_HashKey_Underscore(t *testing.T) {
+	got := runE2E(t, `data{my_key} = ["val"]
+|> data@my_key`)
+	if got != "val" {
+		t.Fatalf("expected %q, got %q", "val", got)
+	}
+}
+
+func TestE2E_HashSingleKeyOps(t *testing.T) {
+	got := runE2E(t, `box{item} = [[5]]
+|> str(box@item)
+box@item = [10]
+|> str(box@item)
+|> str(##box)
+|> str(@@box)`)
+	// ## and @@ on single-key map return single-element SlopValue
+	// str() on single-element → just the value, no brackets
+	if got != "5\n10\nitem\n10" {
+		t.Fatalf("expected %q, got %q", "5\n10\nitem\n10", got)
+	}
+}
+
+func TestE2E_HashReassignVariable(t *testing.T) {
+	// Use different variable names since re-declaring same name isn't supported
+	got := runE2E(t, `m1{a} = [[1]]
+|> str(m1@a)
+m2{b} = [[2]]
+|> str(m2@b)`)
+	if got != "1\n2" {
+		t.Fatalf("expected %q, got %q", "1\n2", got)
+	}
+}
+
+func TestE2E_HashValueInArithmetic(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+|> str(person@age + [1])`)
+	if got != "31" {
+		t.Fatalf("expected %q, got %q", "31", got)
+	}
+}
+
+func TestE2E_HashValueComparison(t *testing.T) {
+	got := runE2E(t, `person{name, age} = ["bob", [30]]
+if person@age > [18] {
+	|> "adult"
+} else {
+	|> "minor"
+}`)
+	if got != "adult" {
+		t.Fatalf("expected %q, got %q", "adult", got)
+	}
+}
+
+// ==========================================
+// Null Value E2E Tests
+// ==========================================
+
+func TestE2E_NullAssignStr(t *testing.T) {
+	got := runE2E(t, `x = null
+|> str(x)`)
+	if got != "null" {
+		t.Fatalf("expected %q, got %q", "null", got)
+	}
+}
+
+func TestE2E_NullStdoutWrite(t *testing.T) {
+	got := runE2E(t, `|> null`)
+	if got != "null" {
+		t.Fatalf("expected %q, got %q", "null", got)
+	}
+}
+
+func TestE2E_NullArrayFormat(t *testing.T) {
+	got := runE2E(t, `x = [null, null, null]
+|> str(x)`)
+	if got != "[null, null, null]" {
+		t.Fatalf("expected %q, got %q", "[null, null, null]", got)
+	}
+}
+
+func TestE2E_NullEqNull(t *testing.T) {
+	got := runE2E(t, `if null == null { |> "yes" }`)
+	if got != "yes" {
+		t.Fatalf("expected %q, got %q", "yes", got)
+	}
+}
+
+func TestE2E_NullNeqValue(t *testing.T) {
+	got := runE2E(t, `if null != [5] { |> "yes" }`)
+	if got != "yes" {
+		t.Fatalf("expected %q, got %q", "yes", got)
+	}
+}
+
+func TestE2E_ValueEqNull(t *testing.T) {
+	got := runE2E(t, `if [1] == null { |> "yes" } else { |> "no" }`)
+	if got != "no" {
+		t.Fatalf("expected %q, got %q", "no", got)
+	}
+}
+
+func TestE2E_NullLength(t *testing.T) {
+	got := runE2E(t, `|> str(#[null, null])`)
+	if got != "2" {
+		t.Fatalf("expected %q, got %q", "2", got)
+	}
+}
+
+func TestE2E_NullContains(t *testing.T) {
+	got := runE2E(t, `if [1, null] ?? null { |> "found" }`)
+	if got != "found" {
+		t.Fatalf("expected %q, got %q", "found", got)
+	}
+}
+
+// --- Null panic tests ---
+
+func TestE2E_NullAddPanic(t *testing.T) {
+	runE2EExpectPanic(t, `x = null + [1]`)
+}
+
+func TestE2E_NullNegatePanic(t *testing.T) {
+	runE2EExpectPanic(t, `x = -null`)
+}
+
+func TestE2E_NullIfPanic(t *testing.T) {
+	runE2EExpectPanic(t, `if null { |> "nope" }`)
+}
+
+func TestE2E_NullNotPanic(t *testing.T) {
+	runE2EExpectPanic(t, `x = !null`)
+}
+
+func TestE2E_NullGtPanic(t *testing.T) {
+	runE2EExpectPanic(t, `x = null > [1]`)
+}
+
+func TestE2E_NullIteratePanic(t *testing.T) {
+	runE2EExpectPanic(t, `for x in null { |> "nope" }`)
+}
+
+// --- Null non-panic edge cases ---
+
+func TestE2E_NullInHashmapValue(t *testing.T) {
+	got := runE2E(t, `m{a} = [null]
+|> str(m@a)`)
+	if got != "null" {
+		t.Fatalf("expected %q, got %q", "null", got)
+	}
+}
+
+func TestE2E_NullForwardDecl(t *testing.T) {
+	got := runE2E(t, `x = null
+x = [42]
+|> str(x)`)
+	if got != "42" {
+		t.Fatalf("expected %q, got %q", "42", got)
 	}
 }

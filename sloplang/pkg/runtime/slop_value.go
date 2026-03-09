@@ -5,10 +5,13 @@ import (
 	"strings"
 )
 
+// SlopNull represents the null value in sloplang.
+type SlopNull struct{}
+
 // SlopValue is the universal value type in sloplang.
 // All values are arrays of elements.
 type SlopValue struct {
-	Elements []any    // int64, uint64, float64, string, or *SlopValue
+	Elements []any    // int64, uint64, float64, string, *SlopValue, or SlopNull
 	Keys     []string // parallel to Elements for hashmaps; nil for plain arrays
 }
 
@@ -20,7 +23,13 @@ func NewSlopValue(elems ...any) *SlopValue {
 
 // IsTruthy returns true if the SlopValue is non-empty.
 // [] is falsy, everything else (including [0]) is truthy.
+// Panics if any element is SlopNull.
 func (sv *SlopValue) IsTruthy() bool {
+	for _, elem := range sv.Elements {
+		if _, ok := elem.(SlopNull); ok {
+			panic("sloplang: cannot use null as boolean")
+		}
+	}
 	return len(sv.Elements) > 0
 }
 
@@ -49,6 +58,8 @@ func FormatValue(v *SlopValue) string {
 
 func formatElement(elem any) string {
 	switch e := elem.(type) {
+	case SlopNull:
+		return "null"
 	case int64:
 		return fmt.Sprintf("%d", e)
 	case uint64:

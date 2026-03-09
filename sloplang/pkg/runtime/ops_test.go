@@ -1137,6 +1137,217 @@ func TestDeepEqual_NestedSlopValue(t *testing.T) {
 	}
 }
 
+// ==========================================
+// Phase 5: Hashmap Tests
+// ==========================================
+
+// --- MapFromKeysValues tests ---
+
+func TestMapFromKeysValues_Basic(t *testing.T) {
+	vals := NewSlopValue("bob", NewSlopValue(int64(30)))
+	m := MapFromKeysValues([]string{"name", "age"}, vals)
+	if len(m.Keys) != 2 || m.Keys[0] != "name" || m.Keys[1] != "age" {
+		t.Fatalf("expected keys [name, age], got %v", m.Keys)
+	}
+	if len(m.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(m.Elements))
+	}
+	if m.Elements[0].(string) != "bob" {
+		t.Fatalf("expected 'bob', got %v", m.Elements[0])
+	}
+}
+
+func TestMapFromKeysValues_Empty(t *testing.T) {
+	m := MapFromKeysValues([]string{}, NewSlopValue())
+	if len(m.Keys) != 0 || len(m.Elements) != 0 {
+		t.Fatalf("expected empty hashmap, got keys=%v elements=%v", m.Keys, m.Elements)
+	}
+}
+
+func TestMapFromKeysValues_Mismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on key/value count mismatch")
+		}
+	}()
+	MapFromKeysValues([]string{"a", "b"}, NewSlopValue("x"))
+}
+
+// --- IndexKeyStr tests ---
+
+func TestIndexKeyStr_Found(t *testing.T) {
+	m := MapFromKeysValues([]string{"name", "age"}, NewSlopValue("bob", NewSlopValue(int64(30))))
+	result := IndexKeyStr(m, "name")
+	if len(result.Elements) != 1 || result.Elements[0].(string) != "bob" {
+		t.Fatalf("expected 'bob', got %v", result)
+	}
+}
+
+func TestIndexKeyStr_FoundNested(t *testing.T) {
+	inner := NewSlopValue(int64(30))
+	m := MapFromKeysValues([]string{"name", "age"}, NewSlopValue("bob", inner))
+	result := IndexKeyStr(m, "age")
+	if result != inner {
+		t.Fatalf("expected same *SlopValue, got different one")
+	}
+}
+
+func TestIndexKeyStr_NotFound(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on key not found")
+		}
+	}()
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	IndexKeyStr(m, "missing")
+}
+
+// --- IndexKey tests ---
+
+func TestIndexKey_Basic(t *testing.T) {
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	result := IndexKey(m, NewSlopValue("name"))
+	if result.Elements[0].(string) != "bob" {
+		t.Fatalf("expected 'bob', got %v", result.Elements[0])
+	}
+}
+
+func TestIndexKey_NonStringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on non-string key")
+		}
+	}()
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	IndexKey(m, NewSlopValue(int64(1)))
+}
+
+func TestIndexKey_MultiElementPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element key")
+		}
+	}()
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	IndexKey(m, NewSlopValue("a", "b"))
+}
+
+// --- IndexKeySetStr tests ---
+
+func TestIndexKeySetStr_Update(t *testing.T) {
+	m := MapFromKeysValues([]string{"name", "age"}, NewSlopValue("bob", NewSlopValue(int64(30))))
+	newVal := NewSlopValue(int64(31))
+	result := IndexKeySetStr(m, "age", newVal)
+	if result != m {
+		t.Fatal("expected same pointer returned")
+	}
+	// Check the element was updated
+	if m.Elements[1].(*SlopValue) != newVal {
+		t.Fatalf("expected updated value, got %v", m.Elements[1])
+	}
+}
+
+func TestIndexKeySetStr_AddNew(t *testing.T) {
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	newVal := NewSlopValue("bob@test.com")
+	IndexKeySetStr(m, "email", newVal)
+	if len(m.Keys) != 2 || m.Keys[1] != "email" {
+		t.Fatalf("expected keys [name, email], got %v", m.Keys)
+	}
+	if len(m.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(m.Elements))
+	}
+	if m.Elements[1].(*SlopValue) != newVal {
+		t.Fatalf("expected new value at index 1")
+	}
+}
+
+// --- IndexKeySet tests ---
+
+func TestIndexKeySet_Basic(t *testing.T) {
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	newVal := NewSlopValue("alice")
+	result := IndexKeySet(m, NewSlopValue("name"), newVal)
+	if result != m {
+		t.Fatal("expected same pointer returned")
+	}
+	if m.Elements[0].(*SlopValue) != newVal {
+		t.Fatalf("expected updated value")
+	}
+}
+
+func TestIndexKeySet_NonStringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on non-string key")
+		}
+	}()
+	m := MapFromKeysValues([]string{"name"}, NewSlopValue("bob"))
+	IndexKeySet(m, NewSlopValue(int64(1)), NewSlopValue("alice"))
+}
+
+// --- MapKeys tests ---
+
+func TestMapKeys_Basic(t *testing.T) {
+	m := MapFromKeysValues([]string{"name", "age"}, NewSlopValue("bob", NewSlopValue(int64(30))))
+	result := MapKeys(m)
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(result.Elements))
+	}
+	if result.Elements[0].(string) != "name" || result.Elements[1].(string) != "age" {
+		t.Fatalf("expected [name, age], got %v", result.Elements)
+	}
+}
+
+func TestMapKeys_NilKeys(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2))
+	result := MapKeys(sv)
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected empty result for plain array, got %d elements", len(result.Elements))
+	}
+}
+
+func TestMapKeys_Empty(t *testing.T) {
+	m := MapFromKeysValues([]string{}, NewSlopValue())
+	result := MapKeys(m)
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected 0 elements, got %d", len(result.Elements))
+	}
+}
+
+// --- MapValues tests ---
+
+func TestMapValues_Basic(t *testing.T) {
+	inner := NewSlopValue(int64(30))
+	m := MapFromKeysValues([]string{"name", "age"}, NewSlopValue("bob", inner))
+	result := MapValues(m)
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(result.Elements))
+	}
+	if result.Keys != nil {
+		t.Fatal("expected nil keys on result")
+	}
+	if result.Elements[0].(string) != "bob" {
+		t.Fatalf("expected 'bob', got %v", result.Elements[0])
+	}
+}
+
+func TestMapValues_NilKeys(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2))
+	result := MapValues(sv)
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected empty result for plain array, got %d elements", len(result.Elements))
+	}
+}
+
+func TestMapValues_Empty(t *testing.T) {
+	m := MapFromKeysValues([]string{}, NewSlopValue())
+	result := MapValues(m)
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected 0 elements, got %d", len(result.Elements))
+	}
+}
+
 func TestIterate_MixedTypes(t *testing.T) {
 	sv := NewSlopValue(int64(1), "hello", float64(3.14))
 	items := Iterate(sv)
@@ -1145,5 +1356,144 @@ func TestIterate_MixedTypes(t *testing.T) {
 	}
 	if items[1].Elements[0].(string) != "hello" {
 		t.Fatalf("expected 'hello', got %v", items[1].Elements[0])
+	}
+}
+
+// ==========================================
+// Null Value Tests
+// ==========================================
+
+func TestFormatValue_Null(t *testing.T) {
+	got := FormatValue(NewSlopValue(SlopNull{}))
+	if got != "null" {
+		t.Fatalf("expected 'null', got %q", got)
+	}
+}
+
+func TestFormatValue_MixedWithNull(t *testing.T) {
+	got := FormatValue(NewSlopValue(int64(1), SlopNull{}, "hi"))
+	if got != "[1, null, hi]" {
+		t.Fatalf("expected '[1, null, hi]', got %q", got)
+	}
+}
+
+func TestIsTruthy_Null(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on null truthiness check")
+		}
+		if s, ok := r.(string); !ok || s != "sloplang: cannot use null as boolean" {
+			t.Fatalf("unexpected panic message: %v", r)
+		}
+	}()
+	NewSlopValue(SlopNull{}).IsTruthy()
+}
+
+func TestEq_NullNull(t *testing.T) {
+	result := Eq(NewSlopValue(SlopNull{}), NewSlopValue(SlopNull{}))
+	if len(result.Elements) == 0 {
+		t.Fatal("expected truthy (null == null), got falsy")
+	}
+}
+
+func TestEq_NullNonNull(t *testing.T) {
+	result := Eq(NewSlopValue(SlopNull{}), NewSlopValue(int64(1)))
+	if len(result.Elements) != 0 {
+		t.Fatal("expected falsy (null != non-null), got truthy")
+	}
+}
+
+func TestNeq_NullNonNull(t *testing.T) {
+	result := Neq(NewSlopValue(SlopNull{}), NewSlopValue(int64(5)))
+	if len(result.Elements) == 0 {
+		t.Fatal("expected truthy (null != non-null), got falsy")
+	}
+}
+
+func TestLt_WithNull(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on null ordered comparison")
+		}
+		if s, ok := r.(string); !ok || s != "sloplang: cannot compare null with ordered operators" {
+			t.Fatalf("unexpected panic message: %v", r)
+		}
+	}()
+	Lt(NewSlopValue(SlopNull{}), NewSlopValue(int64(1)))
+}
+
+func TestAdd_WithNull(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on arithmetic with null")
+		}
+		if s, ok := r.(string); !ok || s != "sloplang: cannot perform arithmetic on null" {
+			t.Fatalf("unexpected panic message: %v", r)
+		}
+	}()
+	Add(NewSlopValue(SlopNull{}), NewSlopValue(int64(1)))
+}
+
+func TestNegate_Null(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on negating null")
+		}
+		if s, ok := r.(string); !ok || s != "sloplang: cannot negate null" {
+			t.Fatalf("unexpected panic message: %v", r)
+		}
+	}()
+	Negate(NewSlopValue(SlopNull{}))
+}
+
+func TestDeepEqual_NullNull(t *testing.T) {
+	if !deepEqual(SlopNull{}, SlopNull{}) {
+		t.Fatal("expected true: null == null")
+	}
+}
+
+func TestDeepEqual_NullNonNull(t *testing.T) {
+	if deepEqual(SlopNull{}, int64(1)) {
+		t.Fatal("expected false: null != int64")
+	}
+	if deepEqual(int64(1), SlopNull{}) {
+		t.Fatal("expected false: int64 != null")
+	}
+}
+
+func TestContains_Null(t *testing.T) {
+	sv := NewSlopValue(int64(1), SlopNull{})
+	result := Contains(sv, NewSlopValue(SlopNull{}))
+	if len(result.Elements) == 0 {
+		t.Fatal("expected truthy: array contains null")
+	}
+}
+
+func TestIterate_Null(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on iterating null")
+		}
+		if s, ok := r.(string); !ok || s != "sloplang: cannot iterate over null" {
+			t.Fatalf("unexpected panic message: %v", r)
+		}
+	}()
+	Iterate(NewSlopValue(SlopNull{}))
+}
+
+func TestIterate_ArrayWithNullElement(t *testing.T) {
+	// [1, null, 3] should iterate fine — null is just an element
+	sv := NewSlopValue(int64(1), SlopNull{}, int64(3))
+	items := Iterate(sv)
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	if _, ok := items[1].Elements[0].(SlopNull); !ok {
+		t.Fatalf("expected SlopNull at index 1, got %T", items[1].Elements[0])
 	}
 }

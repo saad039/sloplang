@@ -121,6 +121,35 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return []ast.Stmt{
 			&ast.ExprStmt{X: callSloprt("IndexSet", g.lowerExpr(s.Object), g.lowerExpr(s.Index), g.lowerExpr(s.Value))},
 		}
+	case *parser.HashDeclStmt:
+		keyElts := make([]ast.Expr, len(s.Keys))
+		for i, k := range s.Keys {
+			keyElts[i] = &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(k)}
+		}
+		keysLit := &ast.CompositeLit{
+			Type: &ast.ArrayType{Elt: ast.NewIdent("string")},
+			Elts: keyElts,
+		}
+		assign := &ast.AssignStmt{
+			Lhs: []ast.Expr{ast.NewIdent(s.Name)},
+			Tok: token.DEFINE,
+			Rhs: []ast.Expr{callSloprt("MapFromKeysValues", keysLit, g.lowerExpr(s.Value))},
+		}
+		g.declared[s.Name] = true
+		suppress := &ast.AssignStmt{
+			Lhs: []ast.Expr{ast.NewIdent("_")},
+			Tok: token.ASSIGN,
+			Rhs: []ast.Expr{ast.NewIdent(s.Name)},
+		}
+		return []ast.Stmt{assign, suppress}
+	case *parser.KeySetStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callSloprt("IndexKeySetStr", g.lowerExpr(s.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(s.Key)}, g.lowerExpr(s.Value))},
+		}
+	case *parser.DynKeySetStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callSloprt("IndexKeySet", g.lowerExpr(s.Object), g.lowerExpr(s.KeyVar), g.lowerExpr(s.Value))},
+		}
 	case *parser.ExprStmt:
 		return []ast.Stmt{
 			&ast.ExprStmt{X: g.lowerExpr(s.Expr)},
@@ -290,10 +319,21 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		return callSloprt("NewSlopValue", g.lowerRawValue(e))
 	case *parser.StringLiteral:
 		return callSloprt("NewSlopValue", g.lowerRawValue(e))
+	case *parser.NullLiteral:
+		return callSloprt("NewSlopValue", &ast.CompositeLit{
+			Type: &ast.SelectorExpr{
+				X:   ast.NewIdent("sloprt"),
+				Sel: ast.NewIdent("SlopNull"),
+			},
+		})
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
 	case *parser.IndexExpr:
 		return callSloprt("Index", g.lowerExpr(e.Object), g.lowerExpr(e.Index))
+	case *parser.KeyAccessExpr:
+		return callSloprt("IndexKeyStr", g.lowerExpr(e.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(e.Key)})
+	case *parser.DynKeyAccessExpr:
+		return callSloprt("IndexKey", g.lowerExpr(e.Object), g.lowerExpr(e.KeyVar))
 	case *parser.PopExpr:
 		return callSloprt("Pop", g.lowerExpr(e.Object))
 	case *parser.SliceExpr:
@@ -318,6 +358,10 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 			return callSloprt("Length", g.lowerExpr(e.Operand))
 		case "~":
 			return callSloprt("Unique", g.lowerExpr(e.Operand))
+		case "##":
+			return callSloprt("MapKeys", g.lowerExpr(e.Operand))
+		case "@@":
+			return callSloprt("MapValues", g.lowerExpr(e.Operand))
 		default:
 			return callSloprt("Not", g.lowerExpr(e.Operand))
 		}
@@ -358,6 +402,13 @@ func (g *Generator) lowerRawValue(expr parser.Expr) ast.Expr {
 			args[i] = g.lowerRawValue(elem)
 		}
 		return callSloprt("NewSlopValue", args...)
+	case *parser.NullLiteral:
+		return &ast.CompositeLit{
+			Type: &ast.SelectorExpr{
+				X:   ast.NewIdent("sloprt"),
+				Sel: ast.NewIdent("SlopNull"),
+			},
+		}
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
 	case *parser.BinaryExpr:

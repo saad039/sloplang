@@ -408,3 +408,110 @@ func TestCodegen_ExprStmt(t *testing.T) {
 		t.Fatalf("expected foo() call, got:\n%s", out)
 	}
 }
+
+// ==========================================
+// Phase 5: Hashmap Codegen Tests
+// ==========================================
+
+func TestCodegen_HashDeclStmt(t *testing.T) {
+	out, err := generate(`person{name, age} = ["bob", [30]]`)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.MapFromKeysValues(") {
+		t.Fatalf("expected sloprt.MapFromKeysValues, got:\n%s", out)
+	}
+	if !strings.Contains(out, `[]string{"name", "age"}`) {
+		t.Fatalf("expected keys literal, got:\n%s", out)
+	}
+}
+
+func TestCodegen_HashDeclStmt_EmptyKeys(t *testing.T) {
+	out, err := generate(`counts{} = []`)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.MapFromKeysValues(") {
+		t.Fatalf("expected sloprt.MapFromKeysValues, got:\n%s", out)
+	}
+	if !strings.Contains(out, "[]string{}") {
+		t.Fatalf("expected empty keys literal, got:\n%s", out)
+	}
+}
+
+func TestCodegen_KeyAccessExpr(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\n|> person@name")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.IndexKeyStr(") {
+		t.Fatalf("expected sloprt.IndexKeyStr, got:\n%s", out)
+	}
+	if !strings.Contains(out, `"name"`) {
+		t.Fatalf("expected string key, got:\n%s", out)
+	}
+}
+
+func TestCodegen_DynKeyAccessExpr(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nk = \"name\"\n|> person@$k")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.IndexKey(") {
+		t.Fatalf("expected sloprt.IndexKey, got:\n%s", out)
+	}
+}
+
+func TestCodegen_KeySetStmt(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nperson@name = [\"alice\"]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.IndexKeySetStr(") {
+		t.Fatalf("expected sloprt.IndexKeySetStr, got:\n%s", out)
+	}
+}
+
+func TestCodegen_DynKeySetStmt(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nk = \"name\"\nperson@$k = [\"alice\"]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.IndexKeySet(") {
+		t.Fatalf("expected sloprt.IndexKeySet, got:\n%s", out)
+	}
+}
+
+func TestCodegen_MapKeysExpr(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nx = ##person")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.MapKeys(") {
+		t.Fatalf("expected sloprt.MapKeys, got:\n%s", out)
+	}
+}
+
+func TestCodegen_MapValuesExpr(t *testing.T) {
+	out, err := generate("person{name} = [\"bob\"]\nx = @@person")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.MapValues(") {
+		t.Fatalf("expected sloprt.MapValues, got:\n%s", out)
+	}
+}
+
+// ==========================================
+// Null Literal Codegen Tests
+// ==========================================
+
+func TestCodegen_NullLiteral(t *testing.T) {
+	out, err := generate(`x = null`)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.NewSlopValue(sloprt.SlopNull{})") {
+		t.Fatalf("expected sloprt.NewSlopValue(sloprt.SlopNull{}), got:\n%s", out)
+	}
+}

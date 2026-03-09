@@ -1,0 +1,162 @@
+[
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes ##, @@, $ with correct disambiguation of # vs ## and @ vs @@",
+    "steps": [
+      "Tokenize ## as TOKEN_DOUBLE_HASH",
+      "Tokenize @@ as TOKEN_DOUBLE_AT",
+      "Tokenize $ as TOKEN_DOLLAR",
+      "Disambiguate # vs ##",
+      "Disambiguate @ vs @@"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces correct AST for hashmap declaration, literal key access, dynamic key access, key set, ##, @@",
+    "steps": [
+      "Parse person{name, age} = [...] into HashDeclStmt",
+      "Parse counts{} = [] into HashDeclStmt with empty keys",
+      "Parse map@name into KeyAccessExpr",
+      "Parse map@$var into DynKeyAccessExpr",
+      "Parse map@name = val into KeySetStmt",
+      "Parse map@$var = val into DynKeySetStmt",
+      "Parse ##map into UnaryExpr with op ##",
+      "Parse @@map into UnaryExpr with op @@",
+      "Parse for k in ##map into ForInStmt with ## iterable"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Runtime supports MapFromKeysValues, IndexKey, IndexKeyStr, IndexKeySet, IndexKeySetStr, MapKeys, MapValues",
+    "steps": [
+      "MapFromKeysValues creates SlopValue with Keys and Elements",
+      "MapFromKeysValues with empty keys creates empty hashmap",
+      "MapFromKeysValues panics on length mismatch",
+      "IndexKeyStr finds key and returns element",
+      "IndexKeyStr panics on missing key",
+      "IndexKey works with SlopValue key",
+      "IndexKeySetStr updates existing key",
+      "IndexKeySetStr appends new key+element",
+      "IndexKeySet works with SlopValue key",
+      "MapKeys returns array of key strings",
+      "MapValues returns array of values without keys"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen lowers HashDeclStmt, KeyAccessExpr, DynKeyAccessExpr, KeySetStmt, DynKeySetStmt, ## and @@ to sloprt calls",
+    "steps": [
+      "Lower HashDeclStmt to sloprt.MapFromKeysValues with []string composite lit",
+      "Lower KeyAccessExpr to sloprt.IndexKeyStr with string literal",
+      "Lower DynKeyAccessExpr to sloprt.IndexKey with variable",
+      "Lower KeySetStmt to sloprt.IndexKeySetStr",
+      "Lower DynKeySetStmt to sloprt.IndexKeySet",
+      "Lower ## to sloprt.MapKeys",
+      "Lower @@ to sloprt.MapValues"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "40+ e2e tests covering hashmap declaration, key access, dynamic key, key set, ##, @@, and combined patterns",
+    "steps": [
+      "Hashmap declaration: 2 keys, 1 key, empty, 3+ keys, mismatch panic",
+      "Key access literal: string value, nested value, missing key panic",
+      "Key access dynamic: via variable, in loop over ##keys",
+      "Key set literal: existing key, new key, set then verify",
+      "Key set dynamic: via variable, new key, in loop",
+      "## prefix: returns keys, empty hashmap, for-in over keys, length of keys",
+      "@@ prefix: returns values, empty hashmap, in expression",
+      "Combined: maps.slop roadmap test, hashmap in fn, count pattern, key iteration",
+      "Edge cases: underscore key, single key, reassign, value in arithmetic"
+    ],
+    "passes": true
+  },
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes null keyword as TOKEN_NULL",
+    "steps": [
+      "Add TOKEN_NULL to token types",
+      "Add null to keywords map",
+      "Tokenize null → TOKEN_NULL",
+      "Tokenize x = null → IDENT, ASSIGN, NULL"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces NullLiteral AST node for null keyword",
+    "steps": [
+      "Add NullLiteral AST node",
+      "Parse null → NullLiteral",
+      "Parse [null, null] → ArrayLiteral with NullLiteral elements",
+      "Parse x = null → AssignStmt with NullLiteral value"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Runtime SlopNull type with strict semantics: panics on arithmetic, truthiness, ordered comparisons, iteration; supports equality and formatting",
+    "steps": [
+      "SlopNull type defined in slop_value.go",
+      "FormatValue renders null as \"null\"",
+      "IsTruthy panics on null",
+      "Eq(null, null) returns truthy",
+      "Eq(null, [1]) returns falsy",
+      "Neq(null, [5]) returns truthy",
+      "Lt/Gt/Lte/Gte with null panics",
+      "Add/Sub/Mul/Div/Mod/Pow with null panics",
+      "Negate null panics",
+      "deepEqual(SlopNull, SlopNull) returns true",
+      "Contains with null element works",
+      "Iterate on null panics"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen lowers NullLiteral to sloprt.NewSlopValue(sloprt.SlopNull{})",
+    "steps": [
+      "NullLiteral lowers to sloprt.NewSlopValue(sloprt.SlopNull{})"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "15+ E2E tests for null: assignment, formatting, equality, arithmetic panics, truthiness panics, contains, length, forward declaration",
+    "steps": [
+      "x = null then str(x) → null",
+      "|> null → null",
+      "[null, null, null] formatting",
+      "null == null → truthy",
+      "null != [5] → truthy",
+      "[1] == null → falsy",
+      "#[null, null] → 2",
+      "[1, null] ?? null → truthy",
+      "null + [1] → panic",
+      "-null → panic",
+      "if null → panic",
+      "!null → panic",
+      "null > [1] → panic",
+      "for x in null → panic",
+      "Null in hashmap value",
+      "Forward declaration: null then reassign"
+    ],
+    "passes": true
+  },
+  {
+    "category": "examples",
+    "description": "Comprehensive example files covering all language features: math.slop, fns.slop, arrays.slop, maps.slop, null.slop",
+    "steps": [
+      "math.slop: all numeric types, arithmetic, comparison, logical ops",
+      "fns.slop: functions, if/else, for-in, infinite loop, break, multi-assign",
+      "arrays.slop: all 11 array operators, index-set, variable index",
+      "maps.slop: declaration, key access/set, dynamic keys, ##, @@, numeric index",
+      "null.slop: forward declaration, null in arrays, equality, str, contains"
+    ],
+    "passes": true
+  }
+]
