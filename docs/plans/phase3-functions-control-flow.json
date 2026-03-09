@@ -1,9 +1,9 @@
 [
   {
     "category": "lexer",
-    "description": "Lexer tokenizes fn, if, else, for, in, <-, {, } keywords and delimiters",
+    "description": "Lexer tokenizes fn, if, else, for, in, break, <-, {, } keywords and delimiters",
     "steps": [
-      "Tokenize fn, if, else, for, in as keywords",
+      "Tokenize fn, if, else, for, in, break as keywords",
       "Tokenize <- as TOKEN_RETURN",
       "Tokenize { as TOKEN_LBRACE and } as TOKEN_RBRACE",
       "Disambiguate < vs <- vs <=",
@@ -13,12 +13,14 @@
   },
   {
     "category": "parser",
-    "description": "Parser produces correct AST for fn decl, if/else, for/in, return, multi-assign, user-defined calls",
+    "description": "Parser produces correct AST for fn decl, if/else, for/in, for loop, break, return, multi-assign, user-defined calls",
     "steps": [
       "Parse fn name(params) { body } into FnDeclStmt",
       "Parse if expr { body } into IfStmt",
       "Parse if expr { body } else { body } into IfStmt with Else branch",
       "Parse for ident in expr { body } into ForInStmt",
+      "Parse for { body } into ForLoopStmt (infinite loop)",
+      "Parse break into BreakStmt",
       "Parse <- expr into ReturnStmt",
       "Parse a, b = expr into MultiAssignStmt",
       "Parse user-defined function calls as CallExpr (already exists)",
@@ -40,12 +42,14 @@
   },
   {
     "category": "codegen",
-    "description": "Codegen lowers FnDeclStmt, IfStmt, ForInStmt, ReturnStmt, MultiAssignStmt to Go AST",
+    "description": "Codegen lowers FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt to Go AST",
     "steps": [
       "Lower FnDeclStmt to *ast.FuncDecl with *SlopValue params and returns",
       "Lower IfStmt to *ast.IfStmt with IsTruthy() condition",
       "Lower IfStmt with else to *ast.IfStmt with Else block",
       "Lower ForInStmt to *ast.RangeStmt over sloprt.Iterate()",
+      "Lower ForLoopStmt to *ast.ForStmt (infinite loop)",
+      "Lower BreakStmt to *ast.BranchStmt with token.BREAK",
       "Lower ReturnStmt to *ast.ReturnStmt",
       "Lower MultiAssignStmt to ast.AssignStmt with multiple LHS",
       "Lower user-defined function calls (non-builtin CallExpr) to direct Go calls",
@@ -55,14 +59,16 @@
   },
   {
     "category": "e2e",
-    "description": "50+ e2e tests covering functions, if/else, for/in, return, multi-assign, nesting, edge cases",
+    "description": "60+ e2e tests covering functions, if/else, for/in, infinite loops, break, return, multi-assign, nesting, edge cases",
     "steps": [
       "fn decl + call: basic, no params, multi params, recursive",
       "return: single value, early return, implicit empty return",
       "if/else: truthy, falsy, else branch, no else, nested if",
       "for/in: iterate array, empty array, single element, nested loop",
+      "infinite loop: immediate break, counter break, inside fn, accumulate, nested break",
+      "break in for-in: early exit from iteration",
       "multi-assign: dual return from function",
-      "combined: fn with if inside, fn with for inside, for with if inside",
+      "combined: fn with if inside, fn with for inside, for with if inside, fibonacci via loop",
       "precedence: fn call in expression, fn call as argument",
       "edge cases: fn calling fn, recursive fibonacci, fn with all statement types",
       "fns.slop roadmap e2e test passes"

@@ -37,7 +37,9 @@ func (p *Parser) parseStatement() Stmt {
 	case lexer.TOKEN_IF:
 		return p.parseIfStmt()
 	case lexer.TOKEN_FOR:
-		return p.parseForInStmt()
+		return p.parseForStmt()
+	case lexer.TOKEN_BREAK:
+		return p.parseBreakStmt()
 	case lexer.TOKEN_RETURN:
 		return p.parseReturnStmt()
 	case lexer.TOKEN_PIPE_GT:
@@ -186,8 +188,26 @@ func (p *Parser) parseIfStmt() *IfStmt {
 	return &IfStmt{Condition: condition, Body: body, Else: elseBody}
 }
 
-func (p *Parser) parseForInStmt() *ForInStmt {
+func (p *Parser) parseForStmt() Stmt {
+	// Peek ahead: for { ... } is infinite loop, for IDENT in ... is for-in
 	p.advance() // consume 'for'
+	if p.curToken().Type == lexer.TOKEN_LBRACE {
+		return p.parseForLoopBody()
+	}
+	return p.parseForInBody()
+}
+
+func (p *Parser) parseForLoopBody() *ForLoopStmt {
+	body := p.parseBlock()
+	return &ForLoopStmt{Body: body}
+}
+
+func (p *Parser) parseBreakStmt() *BreakStmt {
+	p.advance() // consume 'break'
+	return &BreakStmt{}
+}
+
+func (p *Parser) parseForInBody() *ForInStmt {
 
 	if p.curToken().Type != lexer.TOKEN_IDENT {
 		p.addError("expected loop variable, got %s at line %d", p.curToken().Type, p.curToken().Line)

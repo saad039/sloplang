@@ -1,8 +1,8 @@
 # Phase 3: Functions + Return + Control Flow
 
-**Goal:** Make sloplang programmable with function declarations, if/else branching, for/in iteration, return, and multi-assignment.
+**Goal:** Make sloplang programmable with function declarations, if/else branching, for/in iteration, infinite loops, break, return, and multi-assignment.
 
-**Architecture:** Extend lexer with 5 keywords + 2 delimiters + 1 operator. Add 5 new AST nodes. Extend the recursive descent parser with block parsing. Functions lower to Go `*ast.FuncDecl` placed before `main()`. If/else lowers to `*ast.IfStmt`. For/in lowers to `*ast.RangeStmt` over a runtime `Iterate()` helper. Return lowers to `*ast.ReturnStmt`. User-defined function calls reuse the existing `CallExpr` node but codegen distinguishes builtins from user calls.
+**Architecture:** Extend lexer with 6 keywords + 2 delimiters + 1 operator. Add 7 new AST nodes. Extend the recursive descent parser with block parsing. Functions lower to Go `*ast.FuncDecl` placed before `main()`. If/else lowers to `*ast.IfStmt`. For/in lowers to `*ast.RangeStmt` over a runtime `Iterate()` helper. Infinite `for { }` loops lower to `*ast.ForStmt` (no init/cond/post). `break` lowers to `*ast.BranchStmt` with `token.BREAK`. Return lowers to `*ast.ReturnStmt`. User-defined function calls reuse the existing `CallExpr` node but codegen distinguishes builtins from user calls.
 
 **What already exists from Phase 2:** `(`, `)` tokens, `CallExpr` AST node + parser, `str()` builtin in codegen and runtime.
 
@@ -15,11 +15,11 @@
 **New token types:**
 - `TOKEN_LBRACE` (`{`), `TOKEN_RBRACE` (`}`)
 - `TOKEN_RETURN` (`<-`)
-- Keywords: `TOKEN_FN`, `TOKEN_IF`, `TOKEN_ELSE`, `TOKEN_FOR`, `TOKEN_IN`
+- Keywords: `TOKEN_FN`, `TOKEN_IF`, `TOKEN_ELSE`, `TOKEN_FOR`, `TOKEN_IN`, `TOKEN_BREAK`
 
 **Key changes:**
-- Add 7 new constants to `token.go` + entries in `tokenNames`
-- Add 5 entries to the `keywords` map: `"fn"`, `"if"`, `"else"`, `"for"`, `"in"`
+- Add 8 new constants to `token.go` + entries in `tokenNames`
+- Add 6 entries to the `keywords` map: `"fn"`, `"if"`, `"else"`, `"for"`, `"in"`, `"break"`
 - In `lexer.go`, handle `{` and `}` as single-char tokens
 - Disambiguate `<` vs `<=` vs `<-`: when current char is `<`, peek next — if `-` emit `TOKEN_RETURN`, if `=` emit `TOKEN_LTE`, else emit `TOKEN_LT`
 
@@ -36,6 +36,8 @@
 - `FnDeclStmt` — fields: `Name string`, `Params []string`, `Body []Stmt`
 - `IfStmt` — fields: `Condition Expr`, `Body []Stmt`, `Else []Stmt` (nil if no else)
 - `ForInStmt` — fields: `VarName string`, `Iterable Expr`, `Body []Stmt`
+- `ForLoopStmt` — fields: `Body []Stmt` (infinite loop, exited with `break`)
+- `BreakStmt` — no fields
 - `ReturnStmt` — fields: `Value Expr` (nil for bare `<-`)
 - `MultiAssignStmt` — fields: `Names []string`, `Value Expr`
 
@@ -52,7 +54,8 @@ Each gets `stmtNode()` and `TokenLiteral()` methods following existing pattern.
 **Statement dispatch in `parseStatement()`:**
 - `TOKEN_FN` → `parseFnDecl()`
 - `TOKEN_IF` → `parseIfStmt()`
-- `TOKEN_FOR` → `parseForInStmt()`
+- `TOKEN_FOR` → `parseForStmt()` — dispatches to `parseForLoopBody()` (if next is `{`) or `parseForInBody()` (if next is IDENT)
+- `TOKEN_BREAK` → `parseBreakStmt()`
 - `TOKEN_RETURN` (`<-`) → `parseReturnStmt()`
 - `TOKEN_IDENT` with peek at second token:
   - If next is `TOKEN_COMMA` → try `parseMultiAssign()` (lookahead: `ident, ident, ... = expr`)
@@ -63,7 +66,11 @@ Each gets `stmtNode()` and `TokenLiteral()` methods following existing pattern.
 
 **parseIfStmt():** consume `if`, parse condition expression, call `parseBlock()` for body. If next token is `TOKEN_ELSE`, consume it, call `parseBlock()` for else body.
 
-**parseForInStmt():** consume `for`, consume ident (loop var), expect `TOKEN_IN`, parse iterable expression, call `parseBlock()` for body.
+**parseForStmt():** consume `for`. If next token is `{`, call `parseForLoopBody()` → infinite loop. Otherwise call `parseForInBody()` → for-in loop.
+
+**parseForLoopBody():** call `parseBlock()` for body. Returns `ForLoopStmt`.
+
+**parseForInBody():** consume ident (loop var), expect `TOKEN_IN`, parse iterable expression, call `parseBlock()` for body. Returns `ForInStmt`.
 
 **parseReturnStmt():** consume `<-`. If next token starts an expression (not `}` or EOF), parse expression as value. Otherwise value is nil (returns empty).
 

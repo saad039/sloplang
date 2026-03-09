@@ -105,6 +105,10 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return []ast.Stmt{g.lowerIfStmt(s)}
 	case *parser.ForInStmt:
 		return []ast.Stmt{g.lowerForInStmt(s)}
+	case *parser.ForLoopStmt:
+		return []ast.Stmt{g.lowerForLoopStmt(s)}
+	case *parser.BreakStmt:
+		return []ast.Stmt{&ast.BranchStmt{Tok: token.BREAK}}
 	case *parser.ReturnStmt:
 		return g.lowerReturnStmt(s)
 	case *parser.MultiAssignStmt:
@@ -203,6 +207,16 @@ func (g *Generator) lowerForInStmt(s *parser.ForInStmt) *ast.RangeStmt {
 		Tok:   token.DEFINE,
 		X:     callSloprt("Iterate", g.lowerExpr(s.Iterable)),
 		Body:  &ast.BlockStmt{List: bodyStmts},
+	}
+}
+
+func (g *Generator) lowerForLoopStmt(s *parser.ForLoopStmt) *ast.ForStmt {
+	var bodyStmts []ast.Stmt
+	for _, stmt := range s.Body {
+		bodyStmts = append(bodyStmts, g.lowerStmt(stmt)...)
+	}
+	return &ast.ForStmt{
+		Body: &ast.BlockStmt{List: bodyStmts},
 	}
 }
 

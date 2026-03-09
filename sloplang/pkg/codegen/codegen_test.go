@@ -262,6 +262,29 @@ func TestCodegen_MultiAssign(t *testing.T) {
 	}
 }
 
+func TestCodegen_ForLoop(t *testing.T) {
+	out, err := generate("for { break }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "for {") {
+		t.Fatalf("expected for {, got:\n%s", out)
+	}
+	if !strings.Contains(out, "break") {
+		t.Fatalf("expected break, got:\n%s", out)
+	}
+}
+
+func TestCodegen_BreakStmt(t *testing.T) {
+	out, err := generate("for { if [1] { break } }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "break") {
+		t.Fatalf("expected break, got:\n%s", out)
+	}
+}
+
 func TestCodegen_ExprStmt(t *testing.T) {
 	out, err := generate("fn foo() { |> \"hi\" }\nfoo()")
 	if err != nil {

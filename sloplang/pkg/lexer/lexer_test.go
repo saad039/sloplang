@@ -306,13 +306,13 @@ func TestLexer_FunctionCall(t *testing.T) {
 }
 
 func TestLexer_Phase3Keywords(t *testing.T) {
-	l := New(`fn if else for in`)
+	l := New(`fn if else for in break`)
 	expected := []struct {
 		typ TokenType
 		lit string
 	}{
 		{TOKEN_FN, "fn"}, {TOKEN_IF, "if"}, {TOKEN_ELSE, "else"},
-		{TOKEN_FOR, "for"}, {TOKEN_IN, "in"},
+		{TOKEN_FOR, "for"}, {TOKEN_IN, "in"}, {TOKEN_BREAK, "break"},
 		{TOKEN_EOF, ""},
 	}
 	for i, exp := range expected {
@@ -386,6 +386,23 @@ func TestLexer_IfElse(t *testing.T) {
 		{TOKEN_IF, "if"}, {TOKEN_LBRACKET, "["}, {TOKEN_INT, "1"}, {TOKEN_RBRACKET, "]"},
 		{TOKEN_LBRACE, "{"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_STRING, "yes"}, {TOKEN_RBRACE, "}"},
 		{TOKEN_ELSE, "else"}, {TOKEN_LBRACE, "{"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_STRING, "no"}, {TOKEN_RBRACE, "}"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_InfiniteLoop(t *testing.T) {
+	l := New(`for { break }`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FOR, "for"}, {TOKEN_LBRACE, "{"}, {TOKEN_BREAK, "break"}, {TOKEN_RBRACE, "}"},
 		{TOKEN_EOF, ""},
 	}
 	for i, exp := range expected {

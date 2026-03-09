@@ -163,6 +163,20 @@ type MultiAssignStmt struct {
 func (ma *MultiAssignStmt) stmtNode()            {}
 func (ma *MultiAssignStmt) TokenLiteral() string { return "=" }
 
+// ForLoopStmt represents: for { body } (infinite loop)
+type ForLoopStmt struct {
+	Body []Stmt
+}
+
+func (fl *ForLoopStmt) stmtNode()            {}
+func (fl *ForLoopStmt) TokenLiteral() string { return "for" }
+
+// BreakStmt represents: break
+type BreakStmt struct{}
+
+func (bs *BreakStmt) stmtNode()            {}
+func (bs *BreakStmt) TokenLiteral() string { return "break" }
+
 // ExprStmt represents a bare expression as a statement (e.g., function call).
 type ExprStmt struct {
 	Expr Expr

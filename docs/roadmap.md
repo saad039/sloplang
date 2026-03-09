@@ -51,9 +51,9 @@ Make the language programmable.
 
 **Features:**
 - Runtime: function call mechanics via `SlopFunc` type
-- Lexer: `fn`, `if`, `else`, `for`, `in`, `<-`, `{`, `}`, `(`, `)`
-- Parser: `fn` declarations, `if`/`else` statements, `for`/`in` loops, `<-` return, function calls, multi-assignment (`a, b = call()`)
-- Codegen: `*ast.FuncDecl`, `*ast.IfStmt`, `*ast.RangeStmt`, closures as `*ast.FuncLit`
+- Lexer: `fn`, `if`, `else`, `for`, `in`, `break`, `<-`, `{`, `}`, `(`, `)`
+- Parser: `fn` declarations, `if`/`else` statements, `for`/`in` loops, `for { }` infinite loops, `break`, `<-` return, function calls, multi-assignment (`a, b = call()`)
+- Codegen: `*ast.FuncDecl`, `*ast.IfStmt`, `*ast.RangeStmt`, `*ast.ForStmt` (infinite loop), `*ast.BranchStmt` (break), closures as `*ast.FuncLit`
 - Runtime builtins: `str()`
 
 **E2E test — `fns.slop`:**

@@ -635,6 +635,188 @@ func TestParser_NestedBlocks(t *testing.T) {
 	}
 }
 
+func TestParser_ForLoop(t *testing.T) {
+	prog, errs := parse("for { |> \"loop\" }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	forLoop, ok := prog.Statements[0].(*ForLoopStmt)
+	if !ok {
+		t.Fatalf("expected ForLoopStmt, got %T", prog.Statements[0])
+	}
+	if len(forLoop.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(forLoop.Body))
+	}
+}
+
+func TestParser_BreakStmt(t *testing.T) {
+	prog, errs := parse("for { break }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	forLoop := prog.Statements[0].(*ForLoopStmt)
+	bs, ok := forLoop.Body[0].(*BreakStmt)
+	if !ok {
+		t.Fatalf("expected BreakStmt, got %T", forLoop.Body[0])
+	}
+	_ = bs
+}
+
+func TestParser_ForLoopWithBreak(t *testing.T) {
+	prog, errs := parse(`for { if [1] { break } |> "hi" }`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	forLoop := prog.Statements[0].(*ForLoopStmt)
+	if len(forLoop.Body) != 2 {
+		t.Fatalf("expected 2 body stmts, got %d", len(forLoop.Body))
+	}
+	ifStmt, ok := forLoop.Body[0].(*IfStmt)
+	if !ok {
+		t.Fatalf("expected IfStmt, got %T", forLoop.Body[0])
+	}
+	_, ok = ifStmt.Body[0].(*BreakStmt)
+	if !ok {
+		t.Fatalf("expected BreakStmt inside if, got %T", ifStmt.Body[0])
+	}
+}
+
+// ==========================================
+// Negative / Edge Case / Boundary Tests
+// ==========================================
+
+func TestParser_Error_MissingCloseBracket(t *testing.T) {
+	_, errs := parse(`x = [1, 2`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for unclosed bracket")
+	}
+}
+
+func TestParser_Error_MissingCloseParen(t *testing.T) {
+	_, errs := parse(`x = str(y`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error for unclosed paren")
+	}
+}
+
+func TestParser_Error_MissingFnName(t *testing.T) {
+	_, errs := parse(`fn (a, b) { <- a }`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: fn missing name")
+	}
+}
+
+func TestParser_Error_MissingFnOpenParen(t *testing.T) {
+	_, errs := parse(`fn foo a, b) { <- a }`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: fn missing (")
+	}
+}
+
+func TestParser_Error_MissingFnCloseParen(t *testing.T) {
+	_, errs := parse(`fn foo(a, b { <- a }`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: fn missing )")
+	}
+}
+
+func TestParser_Error_MissingIfBrace(t *testing.T) {
+	_, errs := parse(`if [1] |> "yes" }`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: if missing {")
+	}
+}
+
+func TestParser_Error_MissingForInKeyword(t *testing.T) {
+	_, errs := parse(`for x items { |> str(x) }`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: for missing 'in'")
+	}
+}
+
+func TestParser_Error_ForInMissingVar(t *testing.T) {
+	_, errs := parse(`for [1] in items { }`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: for-in non-ident but not {")
+	}
+}
+
+func TestParser_Error_MultiAssignMissingEquals(t *testing.T) {
+	_, errs := parse(`a, b foo()`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: multi-assign missing =")
+	}
+}
+
+func TestParser_Error_UnexpectedToken(t *testing.T) {
+	_, errs := parse(`] [1]`)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: unexpected ]")
+	}
+}
+
+func TestParser_Error_AssignMissingValue(t *testing.T) {
+	_, errs := parse(`x = `)
+	if len(errs) == 0 {
+		t.Fatal("expected parse error: assign missing value")
+	}
+}
+
+func TestParser_BreakOutsideLoop(t *testing.T) {
+	// Parser doesn't enforce break context — it parses fine.
+	// Go compiler catches break outside loop.
+	prog, errs := parse("break")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	_, ok := prog.Statements[0].(*BreakStmt)
+	if !ok {
+		t.Fatalf("expected BreakStmt, got %T", prog.Statements[0])
+	}
+}
+
+func TestParser_EmptyForLoop(t *testing.T) {
+	prog, errs := parse("for { }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fl := prog.Statements[0].(*ForLoopStmt)
+	if len(fl.Body) != 0 {
+		t.Fatalf("expected 0 body stmts, got %d", len(fl.Body))
+	}
+}
+
+func TestParser_NestedForLoops(t *testing.T) {
+	prog, errs := parse("for { for { break } }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	outer := prog.Statements[0].(*ForLoopStmt)
+	inner, ok := outer.Body[0].(*ForLoopStmt)
+	if !ok {
+		t.Fatalf("expected nested ForLoopStmt, got %T", outer.Body[0])
+	}
+	_, ok = inner.Body[0].(*BreakStmt)
+	if !ok {
+		t.Fatalf("expected BreakStmt in inner loop, got %T", inner.Body[0])
+	}
+}
+
+func TestParser_ForLoopInsideFn(t *testing.T) {
+	prog, errs := parse("fn f() { for { break } }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn := prog.Statements[0].(*FnDeclStmt)
+	fl, ok := fn.Body[0].(*ForLoopStmt)
+	if !ok {
+		t.Fatalf("expected ForLoopStmt, got %T", fn.Body[0])
+	}
+	if len(fl.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(fl.Body))
+	}
+}
+
 func TestParser_IfWithComparison(t *testing.T) {
 	prog, errs := parse("if [1] == [1] { |> \"equal\" }")
 	if len(errs) > 0 {

@@ -335,3 +335,441 @@ func TestUnpackTwo_PanicOnTooFew(t *testing.T) {
 	}()
 	UnpackTwo(NewSlopValue(int64(1)))
 }
+
+// ==========================================
+// Negative / Edge Case / Boundary Tests
+// ==========================================
+
+// --- Arithmetic panic tests ---
+
+func TestSub_LengthMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on length mismatch")
+		}
+	}()
+	Sub(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3)))
+}
+
+func TestSub_TypeMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on type mismatch")
+		}
+	}()
+	Sub(NewSlopValue(int64(1)), NewSlopValue(float64(1.0)))
+}
+
+func TestMul_LengthMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on length mismatch")
+		}
+	}()
+	Mul(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3)))
+}
+
+func TestMul_TypeMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on type mismatch")
+		}
+	}()
+	Mul(NewSlopValue(int64(1)), NewSlopValue(uint64(1)))
+}
+
+func TestDiv_LengthMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on length mismatch")
+		}
+	}()
+	Div(NewSlopValue(int64(10), int64(6)), NewSlopValue(int64(2)))
+}
+
+func TestDiv_TypeMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on type mismatch")
+		}
+	}()
+	Div(NewSlopValue(int64(10)), NewSlopValue(float64(2.0)))
+}
+
+func TestDiv_ByZero_Int(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on division by zero")
+		}
+		if s, ok := r.(string); !ok || s != "sloplang: division by zero" {
+			t.Fatalf("unexpected panic message: %v", r)
+		}
+	}()
+	Div(NewSlopValue(int64(10)), NewSlopValue(int64(0)))
+}
+
+func TestDiv_ByZero_Uint(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on division by zero")
+		}
+	}()
+	Div(NewSlopValue(uint64(10)), NewSlopValue(uint64(0)))
+}
+
+func TestDiv_ByZero_Float(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on division by zero")
+		}
+	}()
+	Div(NewSlopValue(float64(10.0)), NewSlopValue(float64(0.0)))
+}
+
+func TestMod_LengthMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on length mismatch")
+		}
+	}()
+	Mod(NewSlopValue(int64(7)), NewSlopValue(int64(3), int64(2)))
+}
+
+func TestMod_TypeMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on type mismatch")
+		}
+	}()
+	Mod(NewSlopValue(int64(7)), NewSlopValue(uint64(3)))
+}
+
+func TestMod_FloatPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: mod not supported for float")
+		}
+	}()
+	Mod(NewSlopValue(float64(7.0)), NewSlopValue(float64(3.0)))
+}
+
+func TestPow_LengthMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on length mismatch")
+		}
+	}()
+	Pow(NewSlopValue(int64(2)), NewSlopValue(int64(3), int64(2)))
+}
+
+func TestPow_TypeMismatch(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on type mismatch")
+		}
+	}()
+	Pow(NewSlopValue(int64(2)), NewSlopValue(float64(3.0)))
+}
+
+func TestAdd_StringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: + not supported for string")
+		}
+	}()
+	Add(NewSlopValue("a"), NewSlopValue("b"))
+}
+
+func TestSub_StringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: - not supported for string")
+		}
+	}()
+	Sub(NewSlopValue("a"), NewSlopValue("b"))
+}
+
+func TestMul_StringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: * not supported for string")
+		}
+	}()
+	Mul(NewSlopValue("a"), NewSlopValue("b"))
+}
+
+func TestDiv_StringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: / not supported for string")
+		}
+	}()
+	Div(NewSlopValue("a"), NewSlopValue("b"))
+}
+
+func TestNegate_StringPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: cannot negate string")
+		}
+	}()
+	Negate(NewSlopValue("hello"))
+}
+
+// --- Arithmetic with empty arrays ---
+
+func TestAdd_EmptyArrays(t *testing.T) {
+	result := Add(NewSlopValue(), NewSlopValue())
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected empty result, got %d elements", len(result.Elements))
+	}
+}
+
+func TestSub_EmptyArrays(t *testing.T) {
+	result := Sub(NewSlopValue(), NewSlopValue())
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected empty result, got %d elements", len(result.Elements))
+	}
+}
+
+func TestNegate_EmptyArray(t *testing.T) {
+	result := Negate(NewSlopValue())
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected empty result, got %d elements", len(result.Elements))
+	}
+}
+
+// --- Comparison panic tests ---
+
+func TestNeq_MultiElement_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element !=")
+		}
+	}()
+	Neq(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(1), int64(2)))
+}
+
+func TestLt_MultiElement_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element <")
+		}
+	}()
+	Lt(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3), int64(4)))
+}
+
+func TestGt_MultiElement_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element >")
+		}
+	}()
+	Gt(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3), int64(4)))
+}
+
+func TestLte_MultiElement_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element <=")
+		}
+	}()
+	Lte(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3), int64(4)))
+}
+
+func TestGte_MultiElement_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on multi-element >=")
+		}
+	}()
+	Gte(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3), int64(4)))
+}
+
+func TestEq_EmptyVsNonEmpty_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: empty vs non-empty comparison")
+		}
+	}()
+	Eq(NewSlopValue(), NewSlopValue(int64(1)))
+}
+
+func TestLt_EmptyArray_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: empty array comparison")
+		}
+	}()
+	Lt(NewSlopValue(), NewSlopValue())
+}
+
+func TestEq_TypeMismatch_IntVsFloat_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: int64 vs float64 comparison")
+		}
+	}()
+	Eq(NewSlopValue(int64(1)), NewSlopValue(float64(1.0)))
+}
+
+func TestEq_TypeMismatch_IntVsString_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: int64 vs string comparison")
+		}
+	}()
+	Eq(NewSlopValue(int64(1)), NewSlopValue("1"))
+}
+
+func TestLt_TypeMismatch_IntVsUint_Panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic: int64 vs uint64 comparison")
+		}
+	}()
+	Lt(NewSlopValue(int64(1)), NewSlopValue(uint64(2)))
+}
+
+// --- UnpackTwo edge cases ---
+
+func TestUnpackTwo_EmptyPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on empty unpack")
+		}
+	}()
+	UnpackTwo(NewSlopValue())
+}
+
+func TestUnpackTwo_ExtraElementsIgnored(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	a, b := UnpackTwo(sv)
+	if a.Elements[0].(int64) != 1 {
+		t.Fatalf("expected 1, got %v", a.Elements[0])
+	}
+	if b.Elements[0].(int64) != 2 {
+		t.Fatalf("expected 2, got %v", b.Elements[0])
+	}
+}
+
+func TestUnpackTwo_MixedTypes(t *testing.T) {
+	sv := NewSlopValue(int64(42), "hello")
+	a, b := UnpackTwo(sv)
+	if a.Elements[0].(int64) != 42 {
+		t.Fatalf("expected 42, got %v", a.Elements[0])
+	}
+	if b.Elements[0].(string) != "hello" {
+		t.Fatalf("expected 'hello', got %v", b.Elements[0])
+	}
+}
+
+// --- IsTruthy edge cases ---
+
+func TestIsTruthy_EmptyArray(t *testing.T) {
+	if NewSlopValue().IsTruthy() {
+		t.Fatal("empty SlopValue should be falsy")
+	}
+}
+
+func TestIsTruthy_Zero(t *testing.T) {
+	if !NewSlopValue(int64(0)).IsTruthy() {
+		t.Fatal("[0] should be truthy")
+	}
+}
+
+func TestIsTruthy_EmptyString(t *testing.T) {
+	if !NewSlopValue("").IsTruthy() {
+		t.Fatal("[\"\"] should be truthy (non-empty array)")
+	}
+}
+
+func TestIsTruthy_MultiElement(t *testing.T) {
+	if !NewSlopValue(int64(1), int64(2)).IsTruthy() {
+		t.Fatal("[1, 2] should be truthy")
+	}
+}
+
+// --- FormatValue / Str edge cases ---
+
+func TestFormatValue_NestedEmpty(t *testing.T) {
+	inner := NewSlopValue()
+	outer := NewSlopValue(inner)
+	got := FormatValue(outer)
+	if got != "[]" {
+		t.Fatalf("expected '[]', got %q", got)
+	}
+}
+
+func TestFormatValue_DeeplyNested(t *testing.T) {
+	inner := NewSlopValue(int64(1))
+	mid := NewSlopValue(inner)
+	outer := NewSlopValue(mid, int64(2))
+	got := FormatValue(outer)
+	if got != "[1, 2]" {
+		t.Fatalf("expected '[1, 2]', got %q", got)
+	}
+}
+
+func TestStr_StringValue(t *testing.T) {
+	result := Str(NewSlopValue("hello"))
+	s := result.Elements[0].(string)
+	if s != "hello" {
+		t.Fatalf("expected 'hello', got %q", s)
+	}
+}
+
+func TestStr_MixedArray(t *testing.T) {
+	result := Str(NewSlopValue(int64(1), "hi", float64(3.14)))
+	s := result.Elements[0].(string)
+	if s != "[1, hi, 3.14]" {
+		t.Fatalf("expected '[1, hi, 3.14]', got %q", s)
+	}
+}
+
+// --- Negate edge cases ---
+
+func TestNegate_Uint(t *testing.T) {
+	result := Negate(NewSlopValue(uint64(5)))
+	// uint64 negate converts to -int64
+	if v, ok := result.Elements[0].(int64); !ok || v != -5 {
+		t.Fatalf("expected -5 (int64), got %v (%T)", result.Elements[0], result.Elements[0])
+	}
+}
+
+func TestNegate_NestedArray(t *testing.T) {
+	inner := NewSlopValue(int64(1), int64(2))
+	outer := NewSlopValue(inner)
+	result := Negate(outer)
+	// Negate on nested SlopValue should negate recursively
+	if len(result.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(result.Elements))
+	}
+}
+
+// --- Iterate edge cases ---
+
+func TestIterate_SingleElement(t *testing.T) {
+	sv := NewSlopValue(int64(42))
+	items := Iterate(sv)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].Elements[0].(int64) != 42 {
+		t.Fatalf("expected 42, got %v", items[0].Elements[0])
+	}
+}
+
+func TestIterate_MixedTypes(t *testing.T) {
+	sv := NewSlopValue(int64(1), "hello", float64(3.14))
+	items := Iterate(sv)
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	if items[1].Elements[0].(string) != "hello" {
+		t.Fatalf("expected 'hello', got %v", items[1].Elements[0])
+	}
+}

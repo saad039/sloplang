@@ -1228,6 +1228,631 @@ func TestE2E_IfFalseKeyword(t *testing.T) {
 	}
 }
 
+// --- Infinite loop + break ---
+
+func TestE2E_ForLoopBreakImmediate(t *testing.T) {
+	src := `for {
+	|> "once"
+	break
+}
+|> "done"`
+	got := runE2E(t, src)
+	if got != "once\ndone" {
+		t.Fatalf("expected %q, got %q", "once\ndone", got)
+	}
+}
+
+func TestE2E_ForLoopCounterBreak(t *testing.T) {
+	src := `i = [0]
+for {
+	if i == [3] {
+		break
+	}
+	|> str(i)
+	i = i + [1]
+}`
+	got := runE2E(t, src)
+	if got != "0\n1\n2" {
+		t.Fatalf("expected %q, got %q", "0\n1\n2", got)
+	}
+}
+
+func TestE2E_ForLoopInsideFn(t *testing.T) {
+	src := `fn countTo(n) {
+	i = [0]
+	for {
+		if i == n {
+			break
+		}
+		|> str(i)
+		i = i + [1]
+	}
+	<- n
+}
+countTo([4])`
+	got := runE2E(t, src)
+	if got != "0\n1\n2\n3" {
+		t.Fatalf("expected %q, got %q", "0\n1\n2\n3", got)
+	}
+}
+
+func TestE2E_ForLoopAccumulate(t *testing.T) {
+	src := `fn sumTo(n) {
+	total = [0]
+	i = [1]
+	for {
+		if i > n {
+			break
+		}
+		total = total + i
+		i = i + [1]
+	}
+	<- total
+}
+|> str(sumTo([10]))`
+	got := runE2E(t, src)
+	if got != "55" {
+		t.Fatalf("expected %q, got %q", "55", got)
+	}
+}
+
+func TestE2E_ForLoopNestedBreak(t *testing.T) {
+	src := `for {
+	for {
+		|> "inner"
+		break
+	}
+	|> "outer"
+	break
+}`
+	got := runE2E(t, src)
+	if got != "inner\nouter" {
+		t.Fatalf("expected %q, got %q", "inner\nouter", got)
+	}
+}
+
+func TestE2E_ForLoopWithForIn(t *testing.T) {
+	src := `count = [0]
+for {
+	for x in [1, 2, 3] {
+		count = count + x
+	}
+	break
+}
+|> str(count)`
+	got := runE2E(t, src)
+	if got != "6" {
+		t.Fatalf("expected %q, got %q", "6", got)
+	}
+}
+
+func TestE2E_BreakInForIn(t *testing.T) {
+	// break also works inside for-in loops
+	src := `for x in [1, 2, 3, 4, 5] {
+	if x == [3] {
+		break
+	}
+	|> str(x)
+}`
+	got := runE2E(t, src)
+	if got != "1\n2" {
+		t.Fatalf("expected %q, got %q", "1\n2", got)
+	}
+}
+
+func TestE2E_ForLoopFibonacci(t *testing.T) {
+	// Fibonacci using infinite loop instead of recursion
+	src := `fn fib_loop(n) {
+	if n <= [1] {
+		<- n
+	}
+	a = [0]
+	b = [1]
+	i = [2]
+	for {
+		if i > n {
+			break
+		}
+		temp = b
+		b = a + b
+		a = temp
+		i = i + [1]
+	}
+	<- b
+}
+|> str(fib_loop([0]))
+|> str(fib_loop([1]))
+|> str(fib_loop([5]))
+|> str(fib_loop([10]))`
+	got := runE2E(t, src)
+	if got != "0\n1\n5\n55" {
+		t.Fatalf("expected %q, got %q", "0\n1\n5\n55", got)
+	}
+}
+
+// ==========================================
+// Negative / Edge Case / Boundary E2E Tests
+// ==========================================
+
+// --- Runtime panics (programs that should crash) ---
+
+func runE2EExpectPanic(t *testing.T, source string) {
+	t.Helper()
+
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	gen := New(modulePath)
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	root := projectRoot()
+
+	goMod := fmt.Sprintf(`module test
+
+go 1.24
+
+require github.com/saad039/sloplang v0.0.0
+
+replace github.com/saad039/sloplang => %s
+`, root)
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = tmpDir
+	if tidyOut, err := tidyCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy failed: %v\n%s", err, string(tidyOut))
+	}
+
+	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
+	buildCmd.Dir = tmpDir
+	buildOut, err := buildCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build failed: %v\n%s\n\nGenerated code:\n%s", err, string(buildOut), string(output))
+	}
+
+	runCmd := exec.Command(filepath.Join(tmpDir, "prog"))
+	err = runCmd.Run()
+	if err == nil {
+		t.Fatal("expected program to panic/exit non-zero, but it succeeded")
+	}
+}
+
+func TestE2E_PanicAddLengthMismatch(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1, 2] + [3]`)
+}
+
+func TestE2E_PanicAddTypeMismatch(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1] + [1.0]`)
+}
+
+func TestE2E_PanicSubLengthMismatch(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1, 2] - [3]`)
+}
+
+func TestE2E_PanicMulTypeMismatch(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1] * [1u]`)
+}
+
+func TestE2E_PanicDivByZeroInt(t *testing.T) {
+	runE2EExpectPanic(t, `x = [10] / [0]`)
+}
+
+func TestE2E_PanicDivByZeroFloat(t *testing.T) {
+	runE2EExpectPanic(t, `x = [10.0] / [0.0]`)
+}
+
+func TestE2E_PanicDivByZeroUint(t *testing.T) {
+	runE2EExpectPanic(t, `x = [10u] / [0u]`)
+}
+
+func TestE2E_PanicModLengthMismatch(t *testing.T) {
+	runE2EExpectPanic(t, `x = [7] % [3, 2]`)
+}
+
+func TestE2E_PanicEqMultiElement(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1, 2] == [1, 2]`)
+}
+
+func TestE2E_PanicLtMultiElement(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1, 2] < [3, 4]`)
+}
+
+func TestE2E_PanicGtMultiElement(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1, 2] > [3, 4]`)
+}
+
+func TestE2E_PanicEqTypeMismatch(t *testing.T) {
+	runE2EExpectPanic(t, `x = [1] == [1.0]`)
+}
+
+func TestE2E_PanicEqEmptyVsNonEmpty(t *testing.T) {
+	runE2EExpectPanic(t, `x = [] == [1]`)
+}
+
+func TestE2E_PanicUnpackTwoTooFew(t *testing.T) {
+	runE2EExpectPanic(t, `a, b = [1]`)
+}
+
+func TestE2E_PanicUnpackTwoEmpty(t *testing.T) {
+	runE2EExpectPanic(t, `a, b = []`)
+}
+
+// --- Boundary: empty and zero values ---
+
+func TestE2E_EmptyArrayIsFalsy(t *testing.T) {
+	got := runE2E(t, `if [] { |> "yes" } else { |> "no" }`)
+	if got != "no" {
+		t.Fatalf("expected %q, got %q", "no", got)
+	}
+}
+
+func TestE2E_ZeroIsTruthy(t *testing.T) {
+	got := runE2E(t, `if [0] { |> "yes" } else { |> "no" }`)
+	if got != "yes" {
+		t.Fatalf("expected %q, got %q", "yes", got)
+	}
+}
+
+func TestE2E_EmptyStringIsTruthy(t *testing.T) {
+	got := runE2E(t, `if "" { |> "yes" } else { |> "no" }`)
+	if got != "yes" {
+		t.Fatalf("expected %q, got %q", "yes", got)
+	}
+}
+
+func TestE2E_AddEmptyArrays(t *testing.T) {
+	got := runE2E(t, `x = [] + []
+|> str(x)`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_NegateEmptyArray(t *testing.T) {
+	got := runE2E(t, `x = -[]
+|> str(x)`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_NotEmptyArray(t *testing.T) {
+	// ![] → truthy ([1])
+	got := runE2E(t, `|> str(![])`	)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_NotNonEmpty(t *testing.T) {
+	// ![1] → falsy ([])
+	got := runE2E(t, `|> str(![1])`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_DoubleNotEmpty(t *testing.T) {
+	// !![] → falsy
+	got := runE2E(t, `|> str(!![])`	)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+// --- Variable reassignment edge cases ---
+
+func TestE2E_ReassignSameVar(t *testing.T) {
+	got := runE2E(t, `x = [1]
+x = [2]
+x = [3]
+|> str(x)`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_ReassignInLoop(t *testing.T) {
+	got := runE2E(t, `x = [0]
+for i in [1, 2, 3] {
+	x = x + i
+}
+|> str(x)`)
+	if got != "6" {
+		t.Fatalf("expected %q, got %q", "6", got)
+	}
+}
+
+func TestE2E_ReassignInNestedLoops(t *testing.T) {
+	got := runE2E(t, `x = [0]
+for i in [1, 2] {
+	for j in [10, 20] {
+		x = x + j
+	}
+}
+|> str(x)`)
+	if got != "60" {
+		t.Fatalf("expected %q, got %q", "60", got)
+	}
+}
+
+// --- Function edge cases ---
+
+func TestE2E_FnReturnsEmptyArray(t *testing.T) {
+	got := runE2E(t, `fn empty() {
+	<- []
+}
+|> str(empty())`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_FnReturnString(t *testing.T) {
+	got := runE2E(t, `fn greet() {
+	<- "hello"
+}
+|> greet()`)
+	if got != "hello" {
+		t.Fatalf("expected %q, got %q", "hello", got)
+	}
+}
+
+func TestE2E_FnMutualRecursion(t *testing.T) {
+	src := `fn isEven(n) {
+	if n == [0] { <- [1] }
+	<- isOdd(n - [1])
+}
+fn isOdd(n) {
+	if n == [0] { <- [] }
+	<- isEven(n - [1])
+}
+if isEven([4]) { |> "even" } else { |> "odd" }
+if isEven([3]) { |> "even" } else { |> "odd" }`
+	got := runE2E(t, src)
+	if got != "even\nodd" {
+		t.Fatalf("expected %q, got %q", "even\nodd", got)
+	}
+}
+
+func TestE2E_FnManyParams(t *testing.T) {
+	src := `fn sum5(a, b, c, d, e) {
+	<- a + b + c + d + e
+}
+|> str(sum5([1], [2], [3], [4], [5]))`
+	got := runE2E(t, src)
+	if got != "15" {
+		t.Fatalf("expected %q, got %q", "15", got)
+	}
+}
+
+func TestE2E_FnScopeIsolation(t *testing.T) {
+	// Function should not see variables from outer scope unless passed
+	src := `x = [100]
+fn getX() {
+	<- x
+}
+|> str(getX())`
+	// In Go codegen, x is a global in main, and getX is a top-level func.
+	// getX can't access x from main — this should fail to compile.
+	// Actually, in the current codegen, x is local to main() and getX()
+	// is a separate top-level func, so this won't compile. Let's verify.
+	l := lexer.New(src)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	gen := New(modulePath)
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	tmpDir := t.TempDir()
+	root := projectRoot()
+	goMod := fmt.Sprintf(`module test
+go 1.24
+require github.com/saad039/sloplang v0.0.0
+replace github.com/saad039/sloplang => %s
+`, root)
+	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644)
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = tmpDir
+	tidyCmd.CombinedOutput()
+	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
+	buildCmd.Dir = tmpDir
+	_, buildErr := buildCmd.CombinedOutput()
+	if buildErr == nil {
+		t.Fatal("expected compile error: fn should not access main-local variables")
+	}
+}
+
+// --- Control flow edge cases ---
+
+func TestE2E_IfElseChain(t *testing.T) {
+	src := `fn classify(x) {
+	if x > [100] {
+		<- "big"
+	} else {
+		if x > [10] {
+			<- "medium"
+		} else {
+			if x > [0] {
+				<- "small"
+			} else {
+				<- "zero-or-neg"
+			}
+		}
+	}
+}
+|> classify([200])
+|> classify([50])
+|> classify([5])
+|> classify([0])`
+	got := runE2E(t, src)
+	if got != "big\nmedium\nsmall\nzero-or-neg" {
+		t.Fatalf("expected %q, got %q", "big\nmedium\nsmall\nzero-or-neg", got)
+	}
+}
+
+func TestE2E_ForInNoBody(t *testing.T) {
+	// Iterating but doing nothing — must compile
+	got := runE2E(t, `for x in [1, 2, 3] { }
+|> "done"`)
+	if got != "done" {
+		t.Fatalf("expected %q, got %q", "done", got)
+	}
+}
+
+func TestE2E_ForLoopEmptyBody(t *testing.T) {
+	// Infinite loop with immediate break, empty-ish body
+	got := runE2E(t, `for { break }
+|> "done"`)
+	if got != "done" {
+		t.Fatalf("expected %q, got %q", "done", got)
+	}
+}
+
+func TestE2E_BreakFromForInEarly(t *testing.T) {
+	// Break from first iteration
+	got := runE2E(t, `for x in [10, 20, 30] {
+	|> str(x)
+	break
+}`)
+	if got != "10" {
+		t.Fatalf("expected %q, got %q", "10", got)
+	}
+}
+
+func TestE2E_NestedBreakOnlyBreaksInner(t *testing.T) {
+	src := `count = [0]
+for i in [1, 2, 3] {
+	for j in [10, 20, 30] {
+		if j == [20] {
+			break
+		}
+		count = count + [1]
+	}
+	count = count + [100]
+}
+|> str(count)`
+	got := runE2E(t, src)
+	// Each outer iteration: inner does 1 iter (j=10) then breaks at j=20
+	// So: 3 outer * (1 inner + 100) = 303
+	if got != "303" {
+		t.Fatalf("expected %q, got %q", "303", got)
+	}
+}
+
+// --- Large / stress ---
+
+func TestE2E_LargeArray(t *testing.T) {
+	// Build a 50-element array
+	elems := make([]string, 50)
+	for i := range elems {
+		elems[i] = fmt.Sprintf("%d", i+1)
+	}
+	src := fmt.Sprintf("x = [%s]\n|> str(x)", strings.Join(elems, ", "))
+	got := runE2E(t, src)
+	expected := fmt.Sprintf("[%s]", strings.Join(elems, ", "))
+	if got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestE2E_LoopManyIterations(t *testing.T) {
+	src := `i = [0]
+for {
+	if i == [100] { break }
+	i = i + [1]
+}
+|> str(i)`
+	got := runE2E(t, src)
+	if got != "100" {
+		t.Fatalf("expected %q, got %q", "100", got)
+	}
+}
+
+// --- String edge cases ---
+
+func TestE2E_EmptyStringOutput(t *testing.T) {
+	got := runE2E(t, `|> ""`)
+	if got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+}
+
+func TestE2E_StringWithEscapes(t *testing.T) {
+	got := runE2E(t, `|> "hello\tworld"`)
+	if got != "hello\tworld" {
+		t.Fatalf("expected %q, got %q", "hello\tworld", got)
+	}
+}
+
+func TestE2E_StringWithNewline(t *testing.T) {
+	got := runE2E(t, `|> "line1\nline2"`)
+	if got != "line1\nline2" {
+		t.Fatalf("expected %q, got %q", "line1\nline2", got)
+	}
+}
+
+// --- Expression edge cases ---
+
+func TestE2E_NestedParens(t *testing.T) {
+	got := runE2E(t, `|> str((([1] + [2]) * [3]))`)
+	if got != "9" {
+		t.Fatalf("expected %q, got %q", "9", got)
+	}
+}
+
+func TestE2E_NegativeResult(t *testing.T) {
+	got := runE2E(t, `|> str([1] - [5])`)
+	if got != "-4" {
+		t.Fatalf("expected %q, got %q", "-4", got)
+	}
+}
+
+func TestE2E_PowerOfZero(t *testing.T) {
+	got := runE2E(t, `|> str([5] ** [0])`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ZeroToThePowerZero(t *testing.T) {
+	got := runE2E(t, `|> str([0] ** [0])`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_MultiAssignExtraElements(t *testing.T) {
+	// Unpack from 3-element array — only takes first 2
+	got := runE2E(t, `a, b = [10, 20, 30]
+|> str(a)
+|> str(b)`)
+	if got != "10\n20" {
+		t.Fatalf("expected %q, got %q", "10\n20", got)
+	}
+}
+
 // Roadmap e2e — fns.slop
 
 func TestE2E_FnsSlop(t *testing.T) {

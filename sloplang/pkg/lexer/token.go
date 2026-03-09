@@ -59,6 +59,7 @@ const (
 	TOKEN_ELSE  // else
 	TOKEN_FOR   // for
 	TOKEN_IN    // in
+	TOKEN_BREAK // break
 )
 
 var tokenNames = map[TokenType]string{
@@ -101,6 +102,7 @@ var tokenNames = map[TokenType]string{
 	TOKEN_ELSE:     "ELSE",
 	TOKEN_FOR:      "FOR",
 	TOKEN_IN:       "IN",
+	TOKEN_BREAK:    "BREAK",
 }
 
 func (t TokenType) String() string {
@@ -126,6 +128,7 @@ var keywords = map[string]TokenType{
 	"else":  TOKEN_ELSE,
 	"for":   TOKEN_FOR,
 	"in":    TOKEN_IN,
+	"break": TOKEN_BREAK,
 }
 
 // LookupIdent returns the token type for an identifier, checking keywords first.

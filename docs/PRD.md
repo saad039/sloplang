@@ -143,7 +143,7 @@ No buffering on any I/O operation.
 
 ## Keywords
 
-`fn`, `if`, `else`, `for`, `in`, `true`, `false`
+`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`
 
 ## Hashmap Declaration & Access
 
@@ -215,6 +215,16 @@ if x > [0] {
 // for-in loop
 for item in arr {
     |> str(item)
+}
+
+// infinite loop with break
+i = [0]
+for {
+    if i == [10] {
+        break
+    }
+    |> str(i)
+    i = i + [1]
 }
 ```
 
