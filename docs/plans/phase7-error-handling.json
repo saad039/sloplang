@@ -1,0 +1,105 @@
+[
+  {
+    "category": "e2e",
+    "description": "basic dual-return from user functions (safe_div pattern)",
+    "steps": [
+      "safe_div success: result=[5], err=[0]",
+      "safe_div division-by-zero guarded: result=[], err=[1]",
+      "Full roadmap errors.slop example end-to-end"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "error propagation across function boundaries",
+    "steps": [
+      "Function wrapping <. (file read) re-returns error on missing file",
+      "Function wrapping <. re-returns success on existing file",
+      "Function wrapping to_num re-returns error on invalid string",
+      "Function wrapping to_num re-returns success on valid string",
+      "Function calling another user function and propagating its error"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "chained error propagation through multiple function levels",
+    "steps": [
+      "Three-level chain: step3 calls step2 calls step1, error propagates from step1",
+      "Three-level chain: success path flows through all levels",
+      "Error code value preserved through chain (not just [1])"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "mixed error and success paths in sequence",
+    "steps": [
+      "Same function called with valid then invalid input",
+      "Same function called with invalid then valid input",
+      "Multiple calls in sequence with alternating success/failure"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "file I/O error handling patterns",
+    "steps": [
+      "Read nonexistent file returns error code [1]",
+      "Write then read round-trip returns success with correct data",
+      "File read error data is empty string"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "to_num parse failure error handling",
+    "steps": [
+      "Valid integer string returns (number, [0])",
+      "Valid float string returns (number, [0])",
+      "Invalid string returns ([], [1])",
+      "Empty string returns ([], [1])"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "division by zero guarded vs unguarded",
+    "steps": [
+      "Guarded: user checks b==[0] before dividing, returns error code",
+      "Unguarded: direct a/[0] causes runtime panic (exit code != 0)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "empty array and edge cases in error patterns",
+    "steps": [
+      "Return [] as error result, check it is falsy",
+      "Return [0] as error code, verify == [0] is truthy",
+      "Return [1] as error code, verify != [0] is truthy"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "error codes driving control flow",
+    "steps": [
+      "Error code in if/else branches to different output",
+      "Loop processing items, count failures via error codes",
+      "Early return on first error in a processing pipeline"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "runtime panics for unguarded errors remain intact",
+    "steps": [
+      "Unguarded division by zero panics",
+      "Type mismatch in arithmetic panics",
+      "Array length mismatch in arithmetic panics",
+      "Multi-element comparison panics"
+    ],
+    "passes": true
+  }
+]

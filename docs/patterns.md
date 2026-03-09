@@ -42,3 +42,9 @@
 
 - **`##` and `@@` on single-key hashmaps return single-element SlopValues.** `str()` on a single-element SlopValue prints just the value (e.g., `"item"`) not `[item]`. When writing expected output for `str(##map)` or `str(@@map)` where the map has only one key, expect no brackets.
 - **HashDeclStmt re-declares the variable name with `:=`.** If you redeclare the same variable name via `m{a} = ...` then later `m{b} = ...`, Go codegen produces two `:=` for `m`, which fails compilation. Use different variable names in tests.
+
+## Error Handling
+
+- **`++` is array Concat, NOT string concatenation.** `"prefix: " ++ str(x)` produces a 2-element array `["prefix: ", "5"]` which formats as `[prefix: , 5]`, not `"prefix: 5"`. To build human-readable output, use separate `|>` calls instead.
+- **User-defined functions returning `[result, errcode]` work via `UnpackTwo`.** The `isDualReturn()` check only applies to builtins (`StdinRead`, `FileRead`, `to_num`). User functions return a single `*SlopValue` containing two elements, which `UnpackTwo` destructures correctly.
+- **Roadmap expected output for `str()` on single-element values uses brackets but actual output doesn't.** `str([5])` outputs `5`, not `[5]`. This is the `FormatValue` single-element behavior documented in Phase 2 patterns.

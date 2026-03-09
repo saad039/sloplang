@@ -228,5 +228,5 @@ All operations are functions that take/return `*SlopValue`:
 | 4 | Array Operators | Done |
 | 5 | Hashmaps | Done |
 | 6 | I/O (stdin + file) | Done |
-| 7 | Error Handling Patterns | Planned |
+| 7 | Error Handling Patterns | Done |
 | 8 | Real Programs | Planned |
