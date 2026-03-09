@@ -131,10 +131,25 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 		}
 
+	case l.ch == '{':
+		tok.Type = TOKEN_LBRACE
+		tok.Literal = "{"
+		l.readChar()
+
+	case l.ch == '}':
+		tok.Type = TOKEN_RBRACE
+		tok.Literal = "}"
+		l.readChar()
+
 	case l.ch == '<':
 		if l.peekChar() == '=' {
 			tok.Type = TOKEN_LTE
 			tok.Literal = "<="
+			l.readChar()
+			l.readChar()
+		} else if l.peekChar() == '-' {
+			tok.Type = TOKEN_RETURN
+			tok.Literal = "<-"
 			l.readChar()
 			l.readChar()
 		} else {

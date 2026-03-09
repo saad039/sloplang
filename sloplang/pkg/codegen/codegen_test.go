@@ -169,3 +169,105 @@ func TestCodegen_CallStr(t *testing.T) {
 		t.Fatalf("expected sloprt.Str, got:\n%s", out)
 	}
 }
+
+func TestCodegen_FnDecl(t *testing.T) {
+	out, err := generate("fn add(a, b) { <- a + b }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "func add(") {
+		t.Fatalf("expected func add(, got:\n%s", out)
+	}
+	if !strings.Contains(out, "*sloprt.SlopValue") {
+		t.Fatalf("expected *sloprt.SlopValue param type, got:\n%s", out)
+	}
+	if !strings.Contains(out, "return") {
+		t.Fatalf("expected return, got:\n%s", out)
+	}
+}
+
+func TestCodegen_IfStmt(t *testing.T) {
+	out, err := generate("x = [1]\nif x { |> \"yes\" }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, ".IsTruthy()") {
+		t.Fatalf("expected .IsTruthy(), got:\n%s", out)
+	}
+}
+
+func TestCodegen_IfElseStmt(t *testing.T) {
+	out, err := generate("x = []\nif x { |> \"yes\" } else { |> \"no\" }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "} else {") {
+		t.Fatalf("expected else block, got:\n%s", out)
+	}
+}
+
+func TestCodegen_ForIn(t *testing.T) {
+	out, err := generate("items = [1, 2]\nfor x in items { |> str(x) }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Iterate(") {
+		t.Fatalf("expected sloprt.Iterate, got:\n%s", out)
+	}
+	if !strings.Contains(out, "range") {
+		t.Fatalf("expected range, got:\n%s", out)
+	}
+}
+
+func TestCodegen_ReturnStmt(t *testing.T) {
+	out, err := generate("fn foo() { <- [1] }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "return sloprt.NewSlopValue(") {
+		t.Fatalf("expected return sloprt.NewSlopValue, got:\n%s", out)
+	}
+}
+
+func TestCodegen_BareReturn(t *testing.T) {
+	out, err := generate("fn foo() { <- }")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "return sloprt.NewSlopValue()") {
+		t.Fatalf("expected return sloprt.NewSlopValue(), got:\n%s", out)
+	}
+}
+
+func TestCodegen_UserCall(t *testing.T) {
+	out, err := generate("fn add(a, b) { <- a + b }\nx = add([1], [2])")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "add(") {
+		t.Fatalf("expected user call add(, got:\n%s", out)
+	}
+	if strings.Contains(out, "sloprt.add(") {
+		t.Fatalf("user call should not be sloprt.add, got:\n%s", out)
+	}
+}
+
+func TestCodegen_MultiAssign(t *testing.T) {
+	out, err := generate("fn foo() { <- [1, 2] }\na, b = foo()")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.UnpackTwo(") {
+		t.Fatalf("expected sloprt.UnpackTwo, got:\n%s", out)
+	}
+}
+
+func TestCodegen_ExprStmt(t *testing.T) {
+	out, err := generate("fn foo() { |> \"hi\" }\nfoo()")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "foo()") {
+		t.Fatalf("expected foo() call, got:\n%s", out)
+	}
+}

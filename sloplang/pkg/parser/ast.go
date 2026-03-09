@@ -115,3 +115,58 @@ type CallExpr struct {
 
 func (ce *CallExpr) exprNode()            {}
 func (ce *CallExpr) TokenLiteral() string { return ce.Name }
+
+// FnDeclStmt represents: fn name(params) { body }
+type FnDeclStmt struct {
+	Name   string
+	Params []string
+	Body   []Stmt
+}
+
+func (fd *FnDeclStmt) stmtNode()            {}
+func (fd *FnDeclStmt) TokenLiteral() string { return "fn" }
+
+// IfStmt represents: if condition { body } else { elseBody }
+type IfStmt struct {
+	Condition Expr
+	Body      []Stmt
+	Else      []Stmt // nil if no else branch
+}
+
+func (is *IfStmt) stmtNode()            {}
+func (is *IfStmt) TokenLiteral() string { return "if" }
+
+// ForInStmt represents: for varName in iterable { body }
+type ForInStmt struct {
+	VarName  string
+	Iterable Expr
+	Body     []Stmt
+}
+
+func (fi *ForInStmt) stmtNode()            {}
+func (fi *ForInStmt) TokenLiteral() string { return "for" }
+
+// ReturnStmt represents: <- value
+type ReturnStmt struct {
+	Value Expr // nil for bare return
+}
+
+func (rs *ReturnStmt) stmtNode()            {}
+func (rs *ReturnStmt) TokenLiteral() string { return "<-" }
+
+// MultiAssignStmt represents: a, b = expr
+type MultiAssignStmt struct {
+	Names []string
+	Value Expr
+}
+
+func (ma *MultiAssignStmt) stmtNode()            {}
+func (ma *MultiAssignStmt) TokenLiteral() string { return "=" }
+
+// ExprStmt represents a bare expression as a statement (e.g., function call).
+type ExprStmt struct {
+	Expr Expr
+}
+
+func (es *ExprStmt) stmtNode()            {}
+func (es *ExprStmt) TokenLiteral() string { return es.Expr.TokenLiteral() }

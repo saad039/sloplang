@@ -333,3 +333,32 @@ func Not(a *SlopValue) *SlopValue {
 func Str(a *SlopValue) *SlopValue {
 	return NewSlopValue(FormatValue(a))
 }
+
+// Iterate returns each element of a SlopValue as its own *SlopValue.
+// Used by for-in loops.
+func Iterate(sv *SlopValue) []*SlopValue {
+	result := make([]*SlopValue, len(sv.Elements))
+	for i, elem := range sv.Elements {
+		if nested, ok := elem.(*SlopValue); ok {
+			result[i] = nested
+		} else {
+			result[i] = NewSlopValue(elem)
+		}
+	}
+	return result
+}
+
+// UnpackTwo destructures a SlopValue into two *SlopValues.
+// Used for multi-assignment: a, b = expr
+func UnpackTwo(sv *SlopValue) (*SlopValue, *SlopValue) {
+	if len(sv.Elements) < 2 {
+		panic(fmt.Sprintf("sloplang: unpack requires at least 2 elements, got %d", len(sv.Elements)))
+	}
+	wrap := func(elem any) *SlopValue {
+		if nested, ok := elem.(*SlopValue); ok {
+			return nested
+		}
+		return NewSlopValue(elem)
+	}
+	return wrap(sv.Elements[0]), wrap(sv.Elements[1])
+}

@@ -1,0 +1,15 @@
+fn add(a, b) {
+    <- a + b
+}
+
+result = add([3], [4])
+|> str(result)
+
+if [1] == [1] {
+    |> "equal"
+}
+
+items = [10, 20, 30]
+for item in items {
+    |> str(item)
+}

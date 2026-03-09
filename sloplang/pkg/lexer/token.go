@@ -45,10 +45,20 @@ const (
 	// Delimiters
 	TOKEN_LPAREN // (
 	TOKEN_RPAREN // )
+	TOKEN_LBRACE // {
+	TOKEN_RBRACE // }
+
+	// Return
+	TOKEN_RETURN // <-
 
 	// Keywords
 	TOKEN_TRUE  // true
 	TOKEN_FALSE // false
+	TOKEN_FN    // fn
+	TOKEN_IF    // if
+	TOKEN_ELSE  // else
+	TOKEN_FOR   // for
+	TOKEN_IN    // in
 )
 
 var tokenNames = map[TokenType]string{
@@ -81,8 +91,16 @@ var tokenNames = map[TokenType]string{
 	TOKEN_NOT:      "NOT",
 	TOKEN_LPAREN:   "LPAREN",
 	TOKEN_RPAREN:   "RPAREN",
+	TOKEN_LBRACE:   "LBRACE",
+	TOKEN_RBRACE:   "RBRACE",
+	TOKEN_RETURN:   "RETURN",
 	TOKEN_TRUE:     "TRUE",
 	TOKEN_FALSE:    "FALSE",
+	TOKEN_FN:       "FN",
+	TOKEN_IF:       "IF",
+	TOKEN_ELSE:     "ELSE",
+	TOKEN_FOR:      "FOR",
+	TOKEN_IN:       "IN",
 }
 
 func (t TokenType) String() string {
@@ -103,6 +121,11 @@ type Token struct {
 var keywords = map[string]TokenType{
 	"true":  TOKEN_TRUE,
 	"false": TOKEN_FALSE,
+	"fn":    TOKEN_FN,
+	"if":    TOKEN_IF,
+	"else":  TOKEN_ELSE,
+	"for":   TOKEN_FOR,
+	"in":    TOKEN_IN,
 }
 
 // LookupIdent returns the token type for an identifier, checking keywords first.

@@ -249,3 +249,89 @@ func TestStr_Empty(t *testing.T) {
 		t.Fatalf("expected '[]', got %q", s)
 	}
 }
+
+// Iterate tests
+
+func TestIterate_IntArray(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	items := Iterate(sv)
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	for i, item := range items {
+		if len(item.Elements) != 1 {
+			t.Fatalf("item %d: expected 1 element, got %d", i, len(item.Elements))
+		}
+	}
+	if items[0].Elements[0].(int64) != 1 {
+		t.Fatalf("expected 1, got %v", items[0].Elements[0])
+	}
+}
+
+func TestIterate_Empty(t *testing.T) {
+	items := Iterate(NewSlopValue())
+	if len(items) != 0 {
+		t.Fatalf("expected 0 items, got %d", len(items))
+	}
+}
+
+func TestIterate_Nested(t *testing.T) {
+	inner1 := NewSlopValue(int64(1), int64(2))
+	inner2 := NewSlopValue(int64(3), int64(4))
+	sv := NewSlopValue(inner1, inner2)
+	items := Iterate(sv)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	// Nested SlopValues should be returned directly
+	if len(items[0].Elements) != 2 {
+		t.Fatalf("expected 2 elements in first, got %d", len(items[0].Elements))
+	}
+}
+
+func TestIterate_StringArray(t *testing.T) {
+	sv := NewSlopValue("a", "b")
+	items := Iterate(sv)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	if items[0].Elements[0].(string) != "a" {
+		t.Fatalf("expected 'a', got %v", items[0].Elements[0])
+	}
+}
+
+// UnpackTwo tests
+
+func TestUnpackTwo_Ints(t *testing.T) {
+	sv := NewSlopValue(int64(10), int64(20))
+	a, b := UnpackTwo(sv)
+	if a.Elements[0].(int64) != 10 {
+		t.Fatalf("expected 10, got %v", a.Elements[0])
+	}
+	if b.Elements[0].(int64) != 20 {
+		t.Fatalf("expected 20, got %v", b.Elements[0])
+	}
+}
+
+func TestUnpackTwo_Nested(t *testing.T) {
+	inner1 := NewSlopValue(int64(1), int64(2))
+	inner2 := NewSlopValue(int64(3), int64(4))
+	sv := NewSlopValue(inner1, inner2)
+	a, b := UnpackTwo(sv)
+	if len(a.Elements) != 2 {
+		t.Fatalf("expected 2 elements in a, got %d", len(a.Elements))
+	}
+	if len(b.Elements) != 2 {
+		t.Fatalf("expected 2 elements in b, got %d", len(b.Elements))
+	}
+}
+
+func TestUnpackTwo_PanicOnTooFew(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic, got nil")
+		}
+	}()
+	UnpackTwo(NewSlopValue(int64(1)))
+}

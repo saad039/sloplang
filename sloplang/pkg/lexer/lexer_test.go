@@ -270,14 +270,14 @@ func TestLexer_Parentheses(t *testing.T) {
 }
 
 func TestLexer_OperatorDisambiguation(t *testing.T) {
-	l := New(`= == ! != * ** |> || < <= > >=`)
+	l := New(`= == ! != * ** |> || < <= <- > >=`)
 	expected := []struct {
 		typ TokenType
 		lit string
 	}{
 		{TOKEN_ASSIGN, "="}, {TOKEN_EQ, "=="}, {TOKEN_NOT, "!"}, {TOKEN_NEQ, "!="},
 		{TOKEN_STAR, "*"}, {TOKEN_POWER, "**"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_OR, "||"},
-		{TOKEN_LT, "<"}, {TOKEN_LTE, "<="}, {TOKEN_GT, ">"}, {TOKEN_GTE, ">="},
+		{TOKEN_LT, "<"}, {TOKEN_LTE, "<="}, {TOKEN_RETURN, "<-"}, {TOKEN_GT, ">"}, {TOKEN_GTE, ">="},
 		{TOKEN_EOF, ""},
 	}
 	for i, exp := range expected {
@@ -296,6 +296,116 @@ func TestLexer_FunctionCall(t *testing.T) {
 	}{
 		{TOKEN_IDENT, "str"}, {TOKEN_LPAREN, "("}, {TOKEN_IDENT, "x"}, {TOKEN_RPAREN, ")"},
 		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_Phase3Keywords(t *testing.T) {
+	l := New(`fn if else for in`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FN, "fn"}, {TOKEN_IF, "if"}, {TOKEN_ELSE, "else"},
+		{TOKEN_FOR, "for"}, {TOKEN_IN, "in"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_Braces(t *testing.T) {
+	l := New(`{ }`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_LBRACE, "{"}, {TOKEN_RBRACE, "}"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_ReturnOperator(t *testing.T) {
+	l := New(`<- [1]`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_RETURN, "<-"}, {TOKEN_LBRACKET, "["}, {TOKEN_INT, "1"}, {TOKEN_RBRACKET, "]"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_FnDecl(t *testing.T) {
+	l := New(`fn add(a, b) { <- a + b }`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FN, "fn"}, {TOKEN_IDENT, "add"}, {TOKEN_LPAREN, "("},
+		{TOKEN_IDENT, "a"}, {TOKEN_COMMA, ","}, {TOKEN_IDENT, "b"},
+		{TOKEN_RPAREN, ")"}, {TOKEN_LBRACE, "{"}, {TOKEN_RETURN, "<-"},
+		{TOKEN_IDENT, "a"}, {TOKEN_PLUS, "+"}, {TOKEN_IDENT, "b"},
+		{TOKEN_RBRACE, "}"}, {TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_IfElse(t *testing.T) {
+	l := New(`if [1] { |> "yes" } else { |> "no" }`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IF, "if"}, {TOKEN_LBRACKET, "["}, {TOKEN_INT, "1"}, {TOKEN_RBRACKET, "]"},
+		{TOKEN_LBRACE, "{"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_STRING, "yes"}, {TOKEN_RBRACE, "}"},
+		{TOKEN_ELSE, "else"}, {TOKEN_LBRACE, "{"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_STRING, "no"}, {TOKEN_RBRACE, "}"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_ForIn(t *testing.T) {
+	l := New(`for x in items { |> str(x) }`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_FOR, "for"}, {TOKEN_IDENT, "x"}, {TOKEN_IN, "in"}, {TOKEN_IDENT, "items"},
+		{TOKEN_LBRACE, "{"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_IDENT, "str"},
+		{TOKEN_LPAREN, "("}, {TOKEN_IDENT, "x"}, {TOKEN_RPAREN, ")"},
+		{TOKEN_RBRACE, "}"}, {TOKEN_EOF, ""},
 	}
 	for i, exp := range expected {
 		tok := l.NextToken()

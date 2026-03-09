@@ -432,3 +432,220 @@ func TestParser_StdoutWriteExpr(t *testing.T) {
 		t.Fatalf("expected op '+', got %q", bin.Op)
 	}
 }
+
+func TestParser_FnDecl(t *testing.T) {
+	prog, errs := parse("fn add(a, b) { <- a + b }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn, ok := prog.Statements[0].(*FnDeclStmt)
+	if !ok {
+		t.Fatalf("expected FnDeclStmt, got %T", prog.Statements[0])
+	}
+	if fn.Name != "add" {
+		t.Fatalf("expected name 'add', got %q", fn.Name)
+	}
+	if len(fn.Params) != 2 || fn.Params[0] != "a" || fn.Params[1] != "b" {
+		t.Fatalf("expected params [a, b], got %v", fn.Params)
+	}
+	if len(fn.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(fn.Body))
+	}
+	ret, ok := fn.Body[0].(*ReturnStmt)
+	if !ok {
+		t.Fatalf("expected ReturnStmt, got %T", fn.Body[0])
+	}
+	bin, ok := ret.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr in return, got %T", ret.Value)
+	}
+	if bin.Op != "+" {
+		t.Fatalf("expected op '+', got %q", bin.Op)
+	}
+}
+
+func TestParser_FnDeclNoParams(t *testing.T) {
+	prog, errs := parse("fn foo() { |> \"hello\" }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn := prog.Statements[0].(*FnDeclStmt)
+	if fn.Name != "foo" {
+		t.Fatalf("expected name 'foo', got %q", fn.Name)
+	}
+	if len(fn.Params) != 0 {
+		t.Fatalf("expected 0 params, got %d", len(fn.Params))
+	}
+	if len(fn.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(fn.Body))
+	}
+}
+
+func TestParser_FnDeclEmptyBody(t *testing.T) {
+	prog, errs := parse("fn noop() { }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn := prog.Statements[0].(*FnDeclStmt)
+	if len(fn.Body) != 0 {
+		t.Fatalf("expected 0 body stmts, got %d", len(fn.Body))
+	}
+}
+
+func TestParser_IfStmt(t *testing.T) {
+	prog, errs := parse("if [1] { |> \"yes\" }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ifStmt, ok := prog.Statements[0].(*IfStmt)
+	if !ok {
+		t.Fatalf("expected IfStmt, got %T", prog.Statements[0])
+	}
+	if ifStmt.Condition == nil {
+		t.Fatal("expected condition, got nil")
+	}
+	if len(ifStmt.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(ifStmt.Body))
+	}
+	if ifStmt.Else != nil {
+		t.Fatalf("expected no else, got %d stmts", len(ifStmt.Else))
+	}
+}
+
+func TestParser_IfElseStmt(t *testing.T) {
+	prog, errs := parse("if [] { |> \"yes\" } else { |> \"no\" }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ifStmt := prog.Statements[0].(*IfStmt)
+	if len(ifStmt.Body) != 1 {
+		t.Fatalf("expected 1 if body stmt, got %d", len(ifStmt.Body))
+	}
+	if len(ifStmt.Else) != 1 {
+		t.Fatalf("expected 1 else stmt, got %d", len(ifStmt.Else))
+	}
+}
+
+func TestParser_ForInStmt(t *testing.T) {
+	prog, errs := parse("for x in items { |> str(x) }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	forStmt, ok := prog.Statements[0].(*ForInStmt)
+	if !ok {
+		t.Fatalf("expected ForInStmt, got %T", prog.Statements[0])
+	}
+	if forStmt.VarName != "x" {
+		t.Fatalf("expected var 'x', got %q", forStmt.VarName)
+	}
+	id, ok := forStmt.Iterable.(*Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier iterable, got %T", forStmt.Iterable)
+	}
+	if id.Name != "items" {
+		t.Fatalf("expected 'items', got %q", id.Name)
+	}
+	if len(forStmt.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(forStmt.Body))
+	}
+}
+
+func TestParser_ReturnStmt(t *testing.T) {
+	prog, errs := parse("fn foo() { <- [1] }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn := prog.Statements[0].(*FnDeclStmt)
+	ret, ok := fn.Body[0].(*ReturnStmt)
+	if !ok {
+		t.Fatalf("expected ReturnStmt, got %T", fn.Body[0])
+	}
+	if ret.Value == nil {
+		t.Fatal("expected return value, got nil")
+	}
+}
+
+func TestParser_BareReturn(t *testing.T) {
+	prog, errs := parse("fn foo() { <- }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn := prog.Statements[0].(*FnDeclStmt)
+	ret := fn.Body[0].(*ReturnStmt)
+	if ret.Value != nil {
+		t.Fatalf("expected nil return value, got %T", ret.Value)
+	}
+}
+
+func TestParser_MultiAssign(t *testing.T) {
+	prog, errs := parse("a, b = foo()")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ma, ok := prog.Statements[0].(*MultiAssignStmt)
+	if !ok {
+		t.Fatalf("expected MultiAssignStmt, got %T", prog.Statements[0])
+	}
+	if len(ma.Names) != 2 || ma.Names[0] != "a" || ma.Names[1] != "b" {
+		t.Fatalf("expected names [a, b], got %v", ma.Names)
+	}
+	call, ok := ma.Value.(*CallExpr)
+	if !ok {
+		t.Fatalf("expected CallExpr, got %T", ma.Value)
+	}
+	if call.Name != "foo" {
+		t.Fatalf("expected 'foo', got %q", call.Name)
+	}
+}
+
+func TestParser_ExprStmt(t *testing.T) {
+	prog, errs := parse("foo()")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	es, ok := prog.Statements[0].(*ExprStmt)
+	if !ok {
+		t.Fatalf("expected ExprStmt, got %T", prog.Statements[0])
+	}
+	call, ok := es.Expr.(*CallExpr)
+	if !ok {
+		t.Fatalf("expected CallExpr, got %T", es.Expr)
+	}
+	if call.Name != "foo" {
+		t.Fatalf("expected 'foo', got %q", call.Name)
+	}
+}
+
+func TestParser_NestedBlocks(t *testing.T) {
+	prog, errs := parse("fn f() { if [1] { for x in [1] { |> str(x) } } }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	fn := prog.Statements[0].(*FnDeclStmt)
+	if len(fn.Body) != 1 {
+		t.Fatalf("expected 1 body stmt, got %d", len(fn.Body))
+	}
+	ifStmt := fn.Body[0].(*IfStmt)
+	if len(ifStmt.Body) != 1 {
+		t.Fatalf("expected 1 if body stmt, got %d", len(ifStmt.Body))
+	}
+	forStmt := ifStmt.Body[0].(*ForInStmt)
+	if len(forStmt.Body) != 1 {
+		t.Fatalf("expected 1 for body stmt, got %d", len(forStmt.Body))
+	}
+}
+
+func TestParser_IfWithComparison(t *testing.T) {
+	prog, errs := parse("if [1] == [1] { |> \"equal\" }")
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ifStmt := prog.Statements[0].(*IfStmt)
+	bin, ok := ifStmt.Condition.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr condition, got %T", ifStmt.Condition)
+	}
+	if bin.Op != "==" {
+		t.Fatalf("expected op '==', got %q", bin.Op)
+	}
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes fn, if, else, for, in, <-, {, } keywords and delimiters",
+    "steps": [
+      "Tokenize fn, if, else, for, in as keywords",
+      "Tokenize <- as TOKEN_RETURN",
+      "Tokenize { as TOKEN_LBRACE and } as TOKEN_RBRACE",
+      "Disambiguate < vs <- vs <=",
+      "Keywords do not collide with existing tokens or identifiers"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces correct AST for fn decl, if/else, for/in, return, multi-assign, user-defined calls",
+    "steps": [
+      "Parse fn name(params) { body } into FnDeclStmt",
+      "Parse if expr { body } into IfStmt",
+      "Parse if expr { body } else { body } into IfStmt with Else branch",
+      "Parse for ident in expr { body } into ForInStmt",
+      "Parse <- expr into ReturnStmt",
+      "Parse a, b = expr into MultiAssignStmt",
+      "Parse user-defined function calls as CallExpr (already exists)",
+      "Parse nested blocks (if inside fn, for inside if)",
+      "Parse fn with no params: fn foo() { body }",
+      "Parse empty body: fn foo() { }"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Runtime supports iteration helpers for for-in loops",
+    "steps": [
+      "Iterate() returns slice of single-element *SlopValue from parent array",
+      "Iterate on empty array returns empty slice",
+      "Iterate on nested array returns each element as *SlopValue"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen lowers FnDeclStmt, IfStmt, ForInStmt, ReturnStmt, MultiAssignStmt to Go AST",
+    "steps": [
+      "Lower FnDeclStmt to *ast.FuncDecl with *SlopValue params and returns",
+      "Lower IfStmt to *ast.IfStmt with IsTruthy() condition",
+      "Lower IfStmt with else to *ast.IfStmt with Else block",
+      "Lower ForInStmt to *ast.RangeStmt over sloprt.Iterate()",
+      "Lower ReturnStmt to *ast.ReturnStmt",
+      "Lower MultiAssignStmt to ast.AssignStmt with multiple LHS",
+      "Lower user-defined function calls (non-builtin CallExpr) to direct Go calls",
+      "Function declarations emitted before main()"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "50+ e2e tests covering functions, if/else, for/in, return, multi-assign, nesting, edge cases",
+    "steps": [
+      "fn decl + call: basic, no params, multi params, recursive",
+      "return: single value, early return, implicit empty return",
+      "if/else: truthy, falsy, else branch, no else, nested if",
+      "for/in: iterate array, empty array, single element, nested loop",
+      "multi-assign: dual return from function",
+      "combined: fn with if inside, fn with for inside, for with if inside",
+      "precedence: fn call in expression, fn call as argument",
+      "edge cases: fn calling fn, recursive fibonacci, fn with all statement types",
+      "fns.slop roadmap e2e test passes"
+    ],
+    "passes": true
+  }
+]

@@ -32,10 +32,30 @@ func (p *Parser) Parse() (*Program, []string) {
 
 func (p *Parser) parseStatement() Stmt {
 	switch p.curToken().Type {
-	case lexer.TOKEN_IDENT:
-		return p.parseAssignStatement()
+	case lexer.TOKEN_FN:
+		return p.parseFnDecl()
+	case lexer.TOKEN_IF:
+		return p.parseIfStmt()
+	case lexer.TOKEN_FOR:
+		return p.parseForInStmt()
+	case lexer.TOKEN_RETURN:
+		return p.parseReturnStmt()
 	case lexer.TOKEN_PIPE_GT:
 		return p.parseStdoutWriteStatement()
+	case lexer.TOKEN_IDENT:
+		// Disambiguate: multi-assign (a, b = ...), single assign (a = ...), or bare expression (fn call)
+		if p.peekToken().Type == lexer.TOKEN_COMMA {
+			return p.parseMultiAssign()
+		}
+		if p.peekToken().Type == lexer.TOKEN_ASSIGN {
+			return p.parseAssignStatement()
+		}
+		// Bare expression statement (e.g., function call)
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil
+		}
+		return &ExprStmt{Expr: expr}
 	default:
 		p.addError("unexpected token %s (%q) at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)
 		p.advance()
@@ -77,6 +97,158 @@ func (p *Parser) parseStdoutWriteStatement() *StdoutWriteStmt {
 	}
 
 	return &StdoutWriteStmt{Value: value}
+}
+
+func (p *Parser) parseBlock() []Stmt {
+	if p.curToken().Type != lexer.TOKEN_LBRACE {
+		p.addError("expected '{', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume '{'
+
+	var stmts []Stmt
+	for p.curToken().Type != lexer.TOKEN_RBRACE && p.curToken().Type != lexer.TOKEN_EOF {
+		stmt := p.parseStatement()
+		if stmt != nil {
+			stmts = append(stmts, stmt)
+		}
+	}
+
+	if p.curToken().Type != lexer.TOKEN_RBRACE {
+		p.addError("expected '}', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume '}'
+	return stmts
+}
+
+func (p *Parser) parseFnDecl() *FnDeclStmt {
+	p.advance() // consume 'fn'
+
+	if p.curToken().Type != lexer.TOKEN_IDENT {
+		p.addError("expected function name, got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	name := p.curToken().Literal
+	p.advance() // consume name
+
+	if p.curToken().Type != lexer.TOKEN_LPAREN {
+		p.addError("expected '(', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume '('
+
+	var params []string
+	if p.curToken().Type != lexer.TOKEN_RPAREN {
+		if p.curToken().Type != lexer.TOKEN_IDENT {
+			p.addError("expected parameter name, got %s at line %d", p.curToken().Type, p.curToken().Line)
+			return nil
+		}
+		params = append(params, p.curToken().Literal)
+		p.advance()
+		for p.curToken().Type == lexer.TOKEN_COMMA {
+			p.advance() // consume ','
+			if p.curToken().Type != lexer.TOKEN_IDENT {
+				p.addError("expected parameter name, got %s at line %d", p.curToken().Type, p.curToken().Line)
+				return nil
+			}
+			params = append(params, p.curToken().Literal)
+			p.advance()
+		}
+	}
+
+	if p.curToken().Type != lexer.TOKEN_RPAREN {
+		p.addError("expected ')', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume ')'
+
+	body := p.parseBlock()
+	return &FnDeclStmt{Name: name, Params: params, Body: body}
+}
+
+func (p *Parser) parseIfStmt() *IfStmt {
+	p.advance() // consume 'if'
+
+	condition := p.parseExpression()
+	if condition == nil {
+		return nil
+	}
+
+	body := p.parseBlock()
+
+	var elseBody []Stmt
+	if p.curToken().Type == lexer.TOKEN_ELSE {
+		p.advance() // consume 'else'
+		elseBody = p.parseBlock()
+	}
+
+	return &IfStmt{Condition: condition, Body: body, Else: elseBody}
+}
+
+func (p *Parser) parseForInStmt() *ForInStmt {
+	p.advance() // consume 'for'
+
+	if p.curToken().Type != lexer.TOKEN_IDENT {
+		p.addError("expected loop variable, got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	varName := p.curToken().Literal
+	p.advance() // consume variable name
+
+	if p.curToken().Type != lexer.TOKEN_IN {
+		p.addError("expected 'in', got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume 'in'
+
+	iterable := p.parseExpression()
+	if iterable == nil {
+		return nil
+	}
+
+	body := p.parseBlock()
+	return &ForInStmt{VarName: varName, Iterable: iterable, Body: body}
+}
+
+func (p *Parser) parseReturnStmt() *ReturnStmt {
+	p.advance() // consume '<-'
+
+	// If next token can't start an expression, bare return
+	if p.curToken().Type == lexer.TOKEN_RBRACE || p.curToken().Type == lexer.TOKEN_EOF {
+		return &ReturnStmt{}
+	}
+
+	value := p.parseExpression()
+	return &ReturnStmt{Value: value}
+}
+
+func (p *Parser) parseMultiAssign() *MultiAssignStmt {
+	var names []string
+	names = append(names, p.curToken().Literal)
+	p.advance() // consume first ident
+
+	for p.curToken().Type == lexer.TOKEN_COMMA {
+		p.advance() // consume ','
+		if p.curToken().Type != lexer.TOKEN_IDENT {
+			p.addError("expected identifier in multi-assign, got %s at line %d", p.curToken().Type, p.curToken().Line)
+			return nil
+		}
+		names = append(names, p.curToken().Literal)
+		p.advance()
+	}
+
+	if p.curToken().Type != lexer.TOKEN_ASSIGN {
+		p.addError("expected '=' in multi-assign, got %s at line %d", p.curToken().Type, p.curToken().Line)
+		return nil
+	}
+	p.advance() // consume '='
+
+	value := p.parseExpression()
+	if value == nil {
+		return nil
+	}
+	return &MultiAssignStmt{Names: names, Value: value}
 }
 
 func (p *Parser) parseExpression() Expr {
