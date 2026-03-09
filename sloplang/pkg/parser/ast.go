@@ -184,3 +184,49 @@ type ExprStmt struct {
 
 func (es *ExprStmt) stmtNode()            {}
 func (es *ExprStmt) TokenLiteral() string { return es.Expr.TokenLiteral() }
+
+// IndexExpr represents: object@index
+type IndexExpr struct {
+	Object Expr
+	Index  Expr
+}
+
+func (ie *IndexExpr) exprNode()            {}
+func (ie *IndexExpr) TokenLiteral() string { return "@" }
+
+// PopExpr represents: >>object (prefix, removes+returns last element)
+type PopExpr struct {
+	Object Expr
+}
+
+func (pe *PopExpr) exprNode()            {}
+func (pe *PopExpr) TokenLiteral() string { return ">>" }
+
+// SliceExpr represents: object::low::high
+type SliceExpr struct {
+	Object Expr
+	Low    Expr
+	High   Expr
+}
+
+func (se *SliceExpr) exprNode()            {}
+func (se *SliceExpr) TokenLiteral() string { return "::" }
+
+// PushStmt represents: object << value
+type PushStmt struct {
+	Object Expr
+	Value  Expr
+}
+
+func (ps *PushStmt) stmtNode()            {}
+func (ps *PushStmt) TokenLiteral() string { return "<<" }
+
+// IndexSetStmt represents: object@index = value
+type IndexSetStmt struct {
+	Object Expr
+	Index  Expr
+	Value  Expr
+}
+
+func (is *IndexSetStmt) stmtNode()            {}
+func (is *IndexSetStmt) TokenLiteral() string { return "@=" }

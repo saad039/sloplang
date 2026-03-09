@@ -45,7 +45,33 @@ func (p *Parser) parseStatement() Stmt {
 	case lexer.TOKEN_PIPE_GT:
 		return p.parseStdoutWriteStatement()
 	case lexer.TOKEN_IDENT:
-		// Disambiguate: multi-assign (a, b = ...), single assign (a = ...), or bare expression (fn call)
+		// Disambiguate: push (a << ...), index-set (a@i = ...), multi-assign, single assign, or bare expression
+		if p.peekToken().Type == lexer.TOKEN_LSHIFT {
+			return p.parsePushStmt()
+		}
+		if p.peekToken().Type == lexer.TOKEN_AT {
+			// Could be index-set (a@i = val) or expression (a@i used as value)
+			saved := p.save()
+			savedErrors := len(p.errors)
+			name := p.curToken().Literal
+			p.advance() // consume ident
+			p.advance() // consume @
+			idx := p.parsePostfixPrimary()
+			if idx != nil && p.curToken().Type == lexer.TOKEN_ASSIGN {
+				p.advance() // consume =
+				val := p.parseExpression()
+				if val != nil {
+					return &IndexSetStmt{
+						Object: &Identifier{Name: name},
+						Index:  idx,
+						Value:  val,
+					}
+				}
+			}
+			// Not an index-set; restore and parse as expression
+			p.restore(saved)
+			p.errors = p.errors[:savedErrors]
+		}
 		if p.peekToken().Type == lexer.TOKEN_COMMA {
 			return p.parseMultiAssign()
 		}
@@ -58,11 +84,29 @@ func (p *Parser) parseStatement() Stmt {
 			return nil
 		}
 		return &ExprStmt{Expr: expr}
+	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE:
+		// Prefix operators that start expression statements
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil
+		}
+		return &ExprStmt{Expr: expr}
 	default:
 		p.addError("unexpected token %s (%q) at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)
 		p.advance()
 		return nil
 	}
+}
+
+func (p *Parser) parsePushStmt() *PushStmt {
+	name := p.curToken().Literal
+	p.advance() // consume ident
+	p.advance() // consume <<
+	value := p.parseExpression()
+	if value == nil {
+		return nil
+	}
+	return &PushStmt{Object: &Identifier{Name: name}, Value: value}
 }
 
 func (p *Parser) parseAssignStatement() *AssignStmt {
@@ -337,7 +381,11 @@ func (p *Parser) parseAddSub() Expr {
 		return nil
 	}
 	for p.curToken().Type == lexer.TOKEN_PLUS ||
-		p.curToken().Type == lexer.TOKEN_MINUS {
+		p.curToken().Type == lexer.TOKEN_MINUS ||
+		p.curToken().Type == lexer.TOKEN_CONCAT ||
+		p.curToken().Type == lexer.TOKEN_REMOVE ||
+		p.curToken().Type == lexer.TOKEN_CONTAINS ||
+		p.curToken().Type == lexer.TOKEN_TILDE_AT {
 		op := p.curToken().Literal
 		p.advance()
 		right := p.parseMulDivMod()
@@ -396,7 +444,82 @@ func (p *Parser) parseUnary() Expr {
 		}
 		return &UnaryExpr{Op: op, Operand: operand}
 	}
-	return p.parseCall()
+	if p.curToken().Type == lexer.TOKEN_HASH ||
+		p.curToken().Type == lexer.TOKEN_TILDE {
+		op := p.curToken().Literal
+		p.advance()
+		operand := p.parseUnary()
+		if operand == nil {
+			return nil
+		}
+		return &UnaryExpr{Op: op, Operand: operand}
+	}
+	if p.curToken().Type == lexer.TOKEN_RSHIFT {
+		p.advance() // consume >>
+		operand := p.parseUnary()
+		if operand == nil {
+			return nil
+		}
+		return &PopExpr{Object: operand}
+	}
+	return p.parsePostfix()
+}
+
+// parsePostfixPrimary parses a simple expression for use as an index or slice bound.
+// It handles numeric literals, identifiers, function calls, and array literals.
+func (p *Parser) parsePostfixPrimary() Expr {
+	switch p.curToken().Type {
+	case lexer.TOKEN_INT, lexer.TOKEN_UINT, lexer.TOKEN_FLOAT:
+		return p.parseNumberLiteral()
+	case lexer.TOKEN_IDENT:
+		if p.peekToken().Type == lexer.TOKEN_LPAREN {
+			return p.parseCall() // function call as index
+		}
+		return p.parseIdentifier()
+	case lexer.TOKEN_LBRACKET:
+		return p.parseArrayLiteral()
+	case lexer.TOKEN_STRING:
+		return p.parseStringLiteral()
+	default:
+		p.addError("unexpected token %s (%q) in postfix expression at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)
+		return nil
+	}
+}
+
+func (p *Parser) parsePostfix() Expr {
+	expr := p.parseCall()
+	if expr == nil {
+		return nil
+	}
+	for {
+		if p.curToken().Type == lexer.TOKEN_AT {
+			p.advance() // consume @
+			idx := p.parsePostfixPrimary()
+			if idx == nil {
+				return nil
+			}
+			expr = &IndexExpr{Object: expr, Index: idx}
+		} else if p.curToken().Type == lexer.TOKEN_DCOLON {
+			p.advance() // consume first ::
+			low := p.parsePostfixPrimary()
+			if low == nil {
+				return nil
+			}
+			if p.curToken().Type != lexer.TOKEN_DCOLON {
+				p.addError("expected '::' after slice low bound, got %s at line %d", p.curToken().Type, p.curToken().Line)
+				return nil
+			}
+			p.advance() // consume second ::
+			high := p.parsePostfixPrimary()
+			if high == nil {
+				return nil
+			}
+			expr = &SliceExpr{Object: expr, Low: low, High: high}
+		} else {
+			break
+		}
+	}
+	return expr
 }
 
 func (p *Parser) parseCall() Expr {
@@ -545,6 +668,9 @@ func (p *Parser) curToken() lexer.Token {
 func (p *Parser) advance() {
 	p.pos++
 }
+
+func (p *Parser) save() int       { return p.pos }
+func (p *Parser) restore(pos int) { p.pos = pos }
 
 func (p *Parser) addError(format string, args ...any) {
 	p.errors = append(p.errors, fmt.Sprintf(format, args...))

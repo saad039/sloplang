@@ -285,6 +285,120 @@ func TestCodegen_BreakStmt(t *testing.T) {
 	}
 }
 
+// ==========================================
+// Phase 4: Array Operator Codegen Tests
+// ==========================================
+
+func TestCodegen_IndexExpr(t *testing.T) {
+	out, err := generate("arr = [10, 20, 30]\n|> arr@0")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Index(") {
+		t.Fatalf("expected sloprt.Index, got:\n%s", out)
+	}
+}
+
+func TestCodegen_IndexSetStmt(t *testing.T) {
+	out, err := generate("arr = [10, 20, 30]\narr@0 = [99]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.IndexSet(") {
+		t.Fatalf("expected sloprt.IndexSet, got:\n%s", out)
+	}
+}
+
+func TestCodegen_PushStmt(t *testing.T) {
+	out, err := generate("arr = [1, 2]\narr << [3]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Push(") {
+		t.Fatalf("expected sloprt.Push, got:\n%s", out)
+	}
+}
+
+func TestCodegen_PopExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 3]\nx = >>arr")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Pop(") {
+		t.Fatalf("expected sloprt.Pop, got:\n%s", out)
+	}
+}
+
+func TestCodegen_SliceExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 3, 4]\nx = arr::1::3")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Slice(") {
+		t.Fatalf("expected sloprt.Slice, got:\n%s", out)
+	}
+}
+
+func TestCodegen_ConcatExpr(t *testing.T) {
+	out, err := generate("x = [1, 2] ++ [3, 4]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Concat(") {
+		t.Fatalf("expected sloprt.Concat, got:\n%s", out)
+	}
+}
+
+func TestCodegen_RemoveExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 3]\nx = arr -- [2]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Remove(") {
+		t.Fatalf("expected sloprt.Remove, got:\n%s", out)
+	}
+}
+
+func TestCodegen_ContainsExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 3]\nx = arr ?? [2]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Contains(") {
+		t.Fatalf("expected sloprt.Contains, got:\n%s", out)
+	}
+}
+
+func TestCodegen_RemoveAtExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 3]\nx = arr ~@ [1]")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.RemoveAt(") {
+		t.Fatalf("expected sloprt.RemoveAt, got:\n%s", out)
+	}
+}
+
+func TestCodegen_LengthExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 3]\nx = #arr")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Length(") {
+		t.Fatalf("expected sloprt.Length, got:\n%s", out)
+	}
+}
+
+func TestCodegen_UniqueExpr(t *testing.T) {
+	out, err := generate("arr = [1, 2, 1]\nx = ~arr")
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Unique(") {
+		t.Fatalf("expected sloprt.Unique, got:\n%s", out)
+	}
+}
+
 func TestCodegen_ExprStmt(t *testing.T) {
 	out, err := generate("fn foo() { |> \"hi\" }\nfoo()")
 	if err != nil {

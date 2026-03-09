@@ -113,6 +113,14 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return g.lowerReturnStmt(s)
 	case *parser.MultiAssignStmt:
 		return g.lowerMultiAssign(s)
+	case *parser.PushStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callSloprt("Push", g.lowerExpr(s.Object), g.lowerExpr(s.Value))},
+		}
+	case *parser.IndexSetStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callSloprt("IndexSet", g.lowerExpr(s.Object), g.lowerExpr(s.Index), g.lowerExpr(s.Value))},
+		}
 	case *parser.ExprStmt:
 		return []ast.Stmt{
 			&ast.ExprStmt{X: g.lowerExpr(s.Expr)},
@@ -284,11 +292,18 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		return callSloprt("NewSlopValue", g.lowerRawValue(e))
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
+	case *parser.IndexExpr:
+		return callSloprt("Index", g.lowerExpr(e.Object), g.lowerExpr(e.Index))
+	case *parser.PopExpr:
+		return callSloprt("Pop", g.lowerExpr(e.Object))
+	case *parser.SliceExpr:
+		return callSloprt("Slice", g.lowerExpr(e.Object), g.lowerExpr(e.Low), g.lowerExpr(e.High))
 	case *parser.BinaryExpr:
 		opFunc := map[string]string{
 			"+": "Add", "-": "Sub", "*": "Mul", "/": "Div", "%": "Mod", "**": "Pow",
 			"==": "Eq", "!=": "Neq", "<": "Lt", ">": "Gt", "<=": "Lte", ">=": "Gte",
 			"&&": "And", "||": "Or",
+			"++": "Concat", "--": "Remove", "??": "Contains", "~@": "RemoveAt",
 		}
 		fname, ok := opFunc[e.Op]
 		if !ok {
@@ -296,10 +311,16 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		}
 		return callSloprt(fname, g.lowerExpr(e.Left), g.lowerExpr(e.Right))
 	case *parser.UnaryExpr:
-		if e.Op == "-" {
+		switch e.Op {
+		case "-":
 			return callSloprt("Negate", g.lowerExpr(e.Operand))
+		case "#":
+			return callSloprt("Length", g.lowerExpr(e.Operand))
+		case "~":
+			return callSloprt("Unique", g.lowerExpr(e.Operand))
+		default:
+			return callSloprt("Not", g.lowerExpr(e.Operand))
 		}
-		return callSloprt("Not", g.lowerExpr(e.Operand))
 	case *parser.CallExpr:
 		args := make([]ast.Expr, len(e.Args))
 		for i, arg := range e.Args {

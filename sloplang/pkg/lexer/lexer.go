@@ -81,14 +81,28 @@ func (l *Lexer) NextToken() Token {
 		l.readChar()
 
 	case l.ch == '+':
-		tok.Type = TOKEN_PLUS
-		tok.Literal = "+"
-		l.readChar()
+		if l.peekChar() == '+' {
+			tok.Type = TOKEN_CONCAT
+			tok.Literal = "++"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_PLUS
+			tok.Literal = "+"
+			l.readChar()
+		}
 
 	case l.ch == '-':
-		tok.Type = TOKEN_MINUS
-		tok.Literal = "-"
-		l.readChar()
+		if l.peekChar() == '-' {
+			tok.Type = TOKEN_REMOVE
+			tok.Literal = "--"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_MINUS
+			tok.Literal = "-"
+			l.readChar()
+		}
 
 	case l.ch == '*':
 		if l.peekChar() == '*' {
@@ -152,6 +166,11 @@ func (l *Lexer) NextToken() Token {
 			tok.Literal = "<-"
 			l.readChar()
 			l.readChar()
+		} else if l.peekChar() == '<' {
+			tok.Type = TOKEN_LSHIFT
+			tok.Literal = "<<"
+			l.readChar()
+			l.readChar()
 		} else {
 			tok.Type = TOKEN_LT
 			tok.Literal = "<"
@@ -162,6 +181,11 @@ func (l *Lexer) NextToken() Token {
 		if l.peekChar() == '=' {
 			tok.Type = TOKEN_GTE
 			tok.Literal = ">="
+			l.readChar()
+			l.readChar()
+		} else if l.peekChar() == '>' {
+			tok.Type = TOKEN_RSHIFT
+			tok.Literal = ">>"
 			l.readChar()
 			l.readChar()
 		} else {
@@ -185,6 +209,52 @@ func (l *Lexer) NextToken() Token {
 		} else if l.peekChar() == '|' {
 			tok.Type = TOKEN_OR
 			tok.Literal = "||"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_ILLEGAL
+			tok.Literal = string(l.ch)
+			l.readChar()
+		}
+
+	case l.ch == '@':
+		tok.Type = TOKEN_AT
+		tok.Literal = "@"
+		l.readChar()
+
+	case l.ch == '#':
+		tok.Type = TOKEN_HASH
+		tok.Literal = "#"
+		l.readChar()
+
+	case l.ch == '~':
+		if l.peekChar() == '@' {
+			tok.Type = TOKEN_TILDE_AT
+			tok.Literal = "~@"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_TILDE
+			tok.Literal = "~"
+			l.readChar()
+		}
+
+	case l.ch == '?':
+		if l.peekChar() == '?' {
+			tok.Type = TOKEN_CONTAINS
+			tok.Literal = "??"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_ILLEGAL
+			tok.Literal = string(l.ch)
+			l.readChar()
+		}
+
+	case l.ch == ':':
+		if l.peekChar() == ':' {
+			tok.Type = TOKEN_DCOLON
+			tok.Literal = "::"
 			l.readChar()
 			l.readChar()
 		} else {

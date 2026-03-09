@@ -763,6 +763,380 @@ func TestIterate_SingleElement(t *testing.T) {
 	}
 }
 
+// ==========================================
+// Phase 4: Array Operation Tests
+// ==========================================
+
+// --- Index tests ---
+
+func TestIndex_Int(t *testing.T) {
+	sv := NewSlopValue(int64(10), int64(20), int64(30))
+	result := Index(sv, NewSlopValue(int64(1)))
+	if result.Elements[0].(int64) != 20 {
+		t.Fatalf("expected 20, got %v", result.Elements[0])
+	}
+}
+
+func TestIndex_Nested(t *testing.T) {
+	inner := NewSlopValue(int64(1), int64(2))
+	sv := NewSlopValue(inner, int64(3))
+	result := Index(sv, NewSlopValue(int64(0)))
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(result.Elements))
+	}
+}
+
+func TestIndex_OutOfBounds(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on out of bounds")
+		}
+	}()
+	sv := NewSlopValue(int64(1), int64(2))
+	Index(sv, NewSlopValue(int64(5)))
+}
+
+func TestIndex_NegativeIndex(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on negative index")
+		}
+	}()
+	sv := NewSlopValue(int64(1))
+	Index(sv, NewSlopValue(int64(-1)))
+}
+
+// --- IndexSet tests ---
+
+func TestIndexSet_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(10), int64(20), int64(30))
+	val := NewSlopValue(int64(99))
+	result := IndexSet(sv, NewSlopValue(int64(1)), val)
+	// Should mutate sv
+	if result != sv {
+		t.Fatal("expected IndexSet to return same pointer")
+	}
+	nested, ok := sv.Elements[1].(*SlopValue)
+	if !ok {
+		t.Fatalf("expected *SlopValue at index 1, got %T", sv.Elements[1])
+	}
+	if nested.Elements[0].(int64) != 99 {
+		t.Fatalf("expected 99, got %v", nested.Elements[0])
+	}
+}
+
+func TestIndexSet_OutOfBounds(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on out of bounds")
+		}
+	}()
+	sv := NewSlopValue(int64(1))
+	IndexSet(sv, NewSlopValue(int64(5)), NewSlopValue(int64(99)))
+}
+
+// --- Length tests ---
+
+func TestLength_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	result := Length(sv)
+	if result.Elements[0].(int64) != 3 {
+		t.Fatalf("expected 3, got %v", result.Elements[0])
+	}
+}
+
+func TestLength_Empty(t *testing.T) {
+	result := Length(NewSlopValue())
+	if result.Elements[0].(int64) != 0 {
+		t.Fatalf("expected 0, got %v", result.Elements[0])
+	}
+}
+
+// --- Push tests ---
+
+func TestPush_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2))
+	result := Push(sv, NewSlopValue(int64(3)))
+	if result != sv {
+		t.Fatal("expected Push to return same pointer")
+	}
+	if len(sv.Elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(sv.Elements))
+	}
+	if sv.Elements[2].(int64) != 3 {
+		t.Fatalf("expected 3, got %v", sv.Elements[2])
+	}
+}
+
+func TestPush_MultipleElements(t *testing.T) {
+	sv := NewSlopValue(int64(1))
+	Push(sv, NewSlopValue(int64(2), int64(3)))
+	if len(sv.Elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(sv.Elements))
+	}
+}
+
+// --- Pop tests ---
+
+func TestPop_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	result := Pop(sv)
+	if result.Elements[0].(int64) != 3 {
+		t.Fatalf("expected 3, got %v", result.Elements[0])
+	}
+	if len(sv.Elements) != 2 {
+		t.Fatalf("expected 2 elements remaining, got %d", len(sv.Elements))
+	}
+}
+
+func TestPop_Nested(t *testing.T) {
+	inner := NewSlopValue(int64(10), int64(20))
+	sv := NewSlopValue(int64(1), inner)
+	result := Pop(sv)
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements in popped value, got %d", len(result.Elements))
+	}
+}
+
+func TestPop_Empty(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on pop from empty array")
+		}
+	}()
+	Pop(NewSlopValue())
+}
+
+// --- RemoveAt tests ---
+
+func TestRemoveAt_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(10), int64(20), int64(30))
+	result := RemoveAt(sv, NewSlopValue(int64(1)))
+	if result.Elements[0].(int64) != 20 {
+		t.Fatalf("expected removed value 20, got %v", result.Elements[0])
+	}
+	if len(sv.Elements) != 2 {
+		t.Fatalf("expected 2 elements remaining, got %d", len(sv.Elements))
+	}
+	if sv.Elements[0].(int64) != 10 || sv.Elements[1].(int64) != 30 {
+		t.Fatalf("expected [10, 30], got %v", sv.Elements)
+	}
+}
+
+func TestRemoveAt_OutOfBounds(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on out of bounds")
+		}
+	}()
+	sv := NewSlopValue(int64(1))
+	RemoveAt(sv, NewSlopValue(int64(5)))
+}
+
+// --- Slice tests ---
+
+func TestSlice_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(10), int64(20), int64(30), int64(40))
+	result := Slice(sv, NewSlopValue(int64(1)), NewSlopValue(int64(3)))
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(result.Elements))
+	}
+	if result.Elements[0].(int64) != 20 || result.Elements[1].(int64) != 30 {
+		t.Fatalf("expected [20, 30], got %v", result.Elements)
+	}
+}
+
+func TestSlice_Full(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2))
+	result := Slice(sv, NewSlopValue(int64(0)), NewSlopValue(int64(2)))
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(result.Elements))
+	}
+}
+
+func TestSlice_OutOfBounds(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on out of bounds slice")
+		}
+	}()
+	sv := NewSlopValue(int64(1))
+	Slice(sv, NewSlopValue(int64(0)), NewSlopValue(int64(5)))
+}
+
+func TestSlice_DoesNotMutate(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	result := Slice(sv, NewSlopValue(int64(0)), NewSlopValue(int64(2)))
+	// Mutating the slice result should not affect original
+	result.Elements[0] = int64(99)
+	if sv.Elements[0].(int64) != 1 {
+		t.Fatal("Slice mutated the original array")
+	}
+}
+
+// --- Concat tests ---
+
+func TestConcat_Basic(t *testing.T) {
+	a := NewSlopValue(int64(1), int64(2))
+	b := NewSlopValue(int64(3), int64(4))
+	result := Concat(a, b)
+	if len(result.Elements) != 4 {
+		t.Fatalf("expected 4 elements, got %d", len(result.Elements))
+	}
+	if result.Elements[0].(int64) != 1 || result.Elements[3].(int64) != 4 {
+		t.Fatalf("unexpected result: %v", result.Elements)
+	}
+}
+
+func TestConcat_DoesNotMutate(t *testing.T) {
+	a := NewSlopValue(int64(1))
+	b := NewSlopValue(int64(2))
+	Concat(a, b)
+	if len(a.Elements) != 1 {
+		t.Fatal("Concat mutated original a")
+	}
+	if len(b.Elements) != 1 {
+		t.Fatal("Concat mutated original b")
+	}
+}
+
+func TestConcat_Empty(t *testing.T) {
+	result := Concat(NewSlopValue(), NewSlopValue(int64(1)))
+	if len(result.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(result.Elements))
+	}
+}
+
+// --- Remove tests ---
+
+func TestRemove_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3), int64(2))
+	result := Remove(sv, NewSlopValue(int64(2)))
+	if len(result.Elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(result.Elements))
+	}
+	// Should remove first occurrence only
+	if result.Elements[0].(int64) != 1 || result.Elements[1].(int64) != 3 || result.Elements[2].(int64) != 2 {
+		t.Fatalf("expected [1, 3, 2], got %v", result.Elements)
+	}
+}
+
+func TestRemove_NotFound(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2))
+	result := Remove(sv, NewSlopValue(int64(99)))
+	if len(result.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(result.Elements))
+	}
+}
+
+func TestRemove_DoesNotMutate(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	Remove(sv, NewSlopValue(int64(2)))
+	if len(sv.Elements) != 3 {
+		t.Fatal("Remove mutated the original array")
+	}
+}
+
+// --- Contains tests ---
+
+func TestContains_Found(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	result := Contains(sv, NewSlopValue(int64(2)))
+	if !result.IsTruthy() {
+		t.Fatal("expected truthy (found)")
+	}
+}
+
+func TestContains_NotFound(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	result := Contains(sv, NewSlopValue(int64(99)))
+	if result.IsTruthy() {
+		t.Fatal("expected falsy (not found)")
+	}
+}
+
+func TestContains_String(t *testing.T) {
+	sv := NewSlopValue("a", "b", "c")
+	result := Contains(sv, NewSlopValue("b"))
+	if !result.IsTruthy() {
+		t.Fatal("expected truthy (found string)")
+	}
+}
+
+// --- Unique tests ---
+
+func TestUnique_Basic(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(1), int64(3), int64(2))
+	result := Unique(sv)
+	if len(result.Elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(result.Elements))
+	}
+	if result.Elements[0].(int64) != 1 || result.Elements[1].(int64) != 2 || result.Elements[2].(int64) != 3 {
+		t.Fatalf("expected [1, 2, 3], got %v", result.Elements)
+	}
+}
+
+func TestUnique_NoDuplicates(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(2), int64(3))
+	result := Unique(sv)
+	if len(result.Elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(result.Elements))
+	}
+}
+
+func TestUnique_Empty(t *testing.T) {
+	result := Unique(NewSlopValue())
+	if len(result.Elements) != 0 {
+		t.Fatalf("expected 0 elements, got %d", len(result.Elements))
+	}
+}
+
+func TestUnique_DoesNotMutate(t *testing.T) {
+	sv := NewSlopValue(int64(1), int64(1))
+	Unique(sv)
+	if len(sv.Elements) != 2 {
+		t.Fatal("Unique mutated the original array")
+	}
+}
+
+// --- deepEqual tests ---
+
+func TestDeepEqual_Ints(t *testing.T) {
+	if !deepEqual(int64(5), int64(5)) {
+		t.Fatal("expected true")
+	}
+	if deepEqual(int64(5), int64(6)) {
+		t.Fatal("expected false")
+	}
+}
+
+func TestDeepEqual_Strings(t *testing.T) {
+	if !deepEqual("abc", "abc") {
+		t.Fatal("expected true")
+	}
+	if deepEqual("abc", "def") {
+		t.Fatal("expected false")
+	}
+}
+
+func TestDeepEqual_DifferentTypes(t *testing.T) {
+	if deepEqual(int64(1), "1") {
+		t.Fatal("expected false for different types")
+	}
+}
+
+func TestDeepEqual_NestedSlopValue(t *testing.T) {
+	a := NewSlopValue(int64(1), int64(2))
+	b := NewSlopValue(int64(1), int64(2))
+	c := NewSlopValue(int64(1), int64(3))
+	if !deepEqual(a, b) {
+		t.Fatal("expected true for equal nested values")
+	}
+	if deepEqual(a, c) {
+		t.Fatal("expected false for different nested values")
+	}
+}
+
 func TestIterate_MixedTypes(t *testing.T) {
 	sv := NewSlopValue(int64(1), "hello", float64(3.14))
 	items := Iterate(sv)

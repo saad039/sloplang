@@ -387,22 +387,19 @@ func TestParser_LogicalPrecedence(t *testing.T) {
 	}
 }
 
-func TestParser_DoubleUnaryNegate(t *testing.T) {
-	prog, errs := parse(`x = --[5]`)
+func TestParser_RemoveOp(t *testing.T) {
+	// With Phase 4, -- is the remove operator (binary), not double negate
+	prog, errs := parse(`x = [1, 2, 3] -- [2]`)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
 	assign := prog.Statements[0].(*AssignStmt)
-	outer := assign.Value.(*UnaryExpr)
-	if outer.Op != "-" {
-		t.Fatalf("expected op '-', got %q", outer.Op)
-	}
-	inner, ok := outer.Operand.(*UnaryExpr)
+	bin, ok := assign.Value.(*BinaryExpr)
 	if !ok {
-		t.Fatalf("expected inner UnaryExpr, got %T", outer.Operand)
+		t.Fatalf("expected BinaryExpr, got %T", assign.Value)
 	}
-	if inner.Op != "-" {
-		t.Fatalf("expected inner op '-', got %q", inner.Op)
+	if bin.Op != "--" {
+		t.Fatalf("expected op '--', got %q", bin.Op)
 	}
 }
 
@@ -814,6 +811,207 @@ func TestParser_ForLoopInsideFn(t *testing.T) {
 	}
 	if len(fl.Body) != 1 {
 		t.Fatalf("expected 1 body stmt, got %d", len(fl.Body))
+	}
+}
+
+// ==========================================
+// Phase 4: Array Operator Tests
+// ==========================================
+
+func TestParser_IndexExpr(t *testing.T) {
+	prog, errs := parse(`|> arr@0`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	sw := prog.Statements[0].(*StdoutWriteStmt)
+	idx, ok := sw.Value.(*IndexExpr)
+	if !ok {
+		t.Fatalf("expected IndexExpr, got %T", sw.Value)
+	}
+	obj, ok := idx.Object.(*Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier object, got %T", idx.Object)
+	}
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+	num, ok := idx.Index.(*NumberLiteral)
+	if !ok {
+		t.Fatalf("expected NumberLiteral index, got %T", idx.Index)
+	}
+	if num.Value != "0" {
+		t.Fatalf("expected '0', got %q", num.Value)
+	}
+}
+
+func TestParser_IndexSetStmt(t *testing.T) {
+	prog, errs := parse(`arr@0 = [99]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	is, ok := prog.Statements[0].(*IndexSetStmt)
+	if !ok {
+		t.Fatalf("expected IndexSetStmt, got %T", prog.Statements[0])
+	}
+	obj := is.Object.(*Identifier)
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+	num := is.Index.(*NumberLiteral)
+	if num.Value != "0" {
+		t.Fatalf("expected '0', got %q", num.Value)
+	}
+	arr, ok := is.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral value, got %T", is.Value)
+	}
+	if len(arr.Elements) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(arr.Elements))
+	}
+}
+
+func TestParser_HashLength(t *testing.T) {
+	prog, errs := parse(`x = #arr`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	unary, ok := assign.Value.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", assign.Value)
+	}
+	if unary.Op != "#" {
+		t.Fatalf("expected op '#', got %q", unary.Op)
+	}
+}
+
+func TestParser_PushStmt(t *testing.T) {
+	prog, errs := parse(`arr << [5]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	ps, ok := prog.Statements[0].(*PushStmt)
+	if !ok {
+		t.Fatalf("expected PushStmt, got %T", prog.Statements[0])
+	}
+	obj := ps.Object.(*Identifier)
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+}
+
+func TestParser_PopExpr(t *testing.T) {
+	prog, errs := parse(`x = >>arr`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	pop, ok := assign.Value.(*PopExpr)
+	if !ok {
+		t.Fatalf("expected PopExpr, got %T", assign.Value)
+	}
+	obj := pop.Object.(*Identifier)
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+}
+
+func TestParser_SliceExpr(t *testing.T) {
+	prog, errs := parse(`x = arr::1::3`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	slice, ok := assign.Value.(*SliceExpr)
+	if !ok {
+		t.Fatalf("expected SliceExpr, got %T", assign.Value)
+	}
+	obj := slice.Object.(*Identifier)
+	if obj.Name != "arr" {
+		t.Fatalf("expected 'arr', got %q", obj.Name)
+	}
+	low := slice.Low.(*NumberLiteral)
+	if low.Value != "1" {
+		t.Fatalf("expected low '1', got %q", low.Value)
+	}
+	high := slice.High.(*NumberLiteral)
+	if high.Value != "3" {
+		t.Fatalf("expected high '3', got %q", high.Value)
+	}
+}
+
+func TestParser_ConcatExpr(t *testing.T) {
+	prog, errs := parse(`x = [1, 2] ++ [3, 4]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	bin, ok := assign.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr, got %T", assign.Value)
+	}
+	if bin.Op != "++" {
+		t.Fatalf("expected op '++', got %q", bin.Op)
+	}
+}
+
+func TestParser_RemoveBinaryExpr(t *testing.T) {
+	prog, errs := parse(`x = arr -- [5]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	bin, ok := assign.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr, got %T", assign.Value)
+	}
+	if bin.Op != "--" {
+		t.Fatalf("expected op '--', got %q", bin.Op)
+	}
+}
+
+func TestParser_UniqueExpr(t *testing.T) {
+	prog, errs := parse(`x = ~arr`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	unary, ok := assign.Value.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", assign.Value)
+	}
+	if unary.Op != "~" {
+		t.Fatalf("expected op '~', got %q", unary.Op)
+	}
+}
+
+func TestParser_ContainsExpr(t *testing.T) {
+	prog, errs := parse(`x = arr ?? [5]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	bin, ok := assign.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr, got %T", assign.Value)
+	}
+	if bin.Op != "??" {
+		t.Fatalf("expected op '??', got %q", bin.Op)
+	}
+}
+
+func TestParser_RemoveAtExpr(t *testing.T) {
+	prog, errs := parse(`x = arr ~@ [2]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	bin, ok := assign.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr, got %T", assign.Value)
+	}
+	if bin.Op != "~@" {
+		t.Fatalf("expected op '~@', got %q", bin.Op)
 	}
 }
 

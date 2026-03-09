@@ -274,7 +274,8 @@ func TestE2E_NegateNegative(t *testing.T) {
 }
 
 func TestE2E_DoubleNegate(t *testing.T) {
-	got := runE2E(t, "x = --[5]\n|> str(x)")
+	// With Phase 4, -- is the remove operator. Use -(-[5]) for double negate.
+	got := runE2E(t, "x = -(-[5])\n|> str(x)")
 	if got != "5" {
 		t.Fatalf("expected %q, got %q", "5", got)
 	}
@@ -1533,7 +1534,7 @@ func TestE2E_NegateEmptyArray(t *testing.T) {
 
 func TestE2E_NotEmptyArray(t *testing.T) {
 	// ![] → truthy ([1])
-	got := runE2E(t, `|> str(![])`	)
+	got := runE2E(t, `|> str(![])`)
 	if got != "1" {
 		t.Fatalf("expected %q, got %q", "1", got)
 	}
@@ -1549,7 +1550,7 @@ func TestE2E_NotNonEmpty(t *testing.T) {
 
 func TestE2E_DoubleNotEmpty(t *testing.T) {
 	// !![] → falsy
-	got := runE2E(t, `|> str(!![])`	)
+	got := runE2E(t, `|> str(!![])`)
 	if got != "[]" {
 		t.Fatalf("expected %q, got %q", "[]", got)
 	}
@@ -1873,6 +1874,548 @@ for item in items {
 }`
 	got := runE2E(t, src)
 	expected := "7\nequal\n10\n20\n30"
+	if got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+// ==========================================
+// Phase 4: Array Operators E2E Tests
+// ==========================================
+
+// --- Index (8 tests) ---
+
+func TestE2E_IndexFirst(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+|> str(arr@0)`)
+	if got != "10" {
+		t.Fatalf("expected %q, got %q", "10", got)
+	}
+}
+
+func TestE2E_IndexLast(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+|> str(arr@2)`)
+	if got != "30" {
+		t.Fatalf("expected %q, got %q", "30", got)
+	}
+}
+
+func TestE2E_IndexMiddle(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+|> str(arr@1)`)
+	if got != "20" {
+		t.Fatalf("expected %q, got %q", "20", got)
+	}
+}
+
+func TestE2E_IndexNested(t *testing.T) {
+	got := runE2E(t, `m = [[1, 2], [3, 4]]
+|> str(m@0)`)
+	if got != "[1, 2]" {
+		t.Fatalf("expected %q, got %q", "[1, 2]", got)
+	}
+}
+
+func TestE2E_IndexFnResult(t *testing.T) {
+	got := runE2E(t, `fn f() {
+	<- [10, 20]
+}
+|> str(f()@1)`)
+	if got != "20" {
+		t.Fatalf("expected %q, got %q", "20", got)
+	}
+}
+
+func TestE2E_IndexSet(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+arr@1 = [99]
+|> str(arr)`)
+	if got != "[10, 99, 30]" {
+		t.Fatalf("expected %q, got %q", "[10, 99, 30]", got)
+	}
+}
+
+func TestE2E_IndexSetVarIndex(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+idx = [2]
+arr@idx = [99]
+|> str(arr)`)
+	if got != "[10, 20, 99]" {
+		t.Fatalf("expected %q, got %q", "[10, 20, 99]", got)
+	}
+}
+
+func TestE2E_PanicIndexOutOfBounds(t *testing.T) {
+	runE2EExpectPanic(t, `arr = [10, 20, 30]
+x = arr@5`)
+}
+
+// --- Length (4 tests) ---
+
+func TestE2E_LengthBasic(t *testing.T) {
+	got := runE2E(t, `|> str(#[1, 2, 3])`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_LengthEmpty(t *testing.T) {
+	got := runE2E(t, `|> str(#[])`)
+	if got != "0" {
+		t.Fatalf("expected %q, got %q", "0", got)
+	}
+}
+
+func TestE2E_LengthInExpr(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+if #arr == [3] {
+	|> "correct"
+}`)
+	if got != "correct" {
+		t.Fatalf("expected %q, got %q", "correct", got)
+	}
+}
+
+func TestE2E_LengthOfConcat(t *testing.T) {
+	got := runE2E(t, `|> str(#([1, 2] ++ [3]))`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+// --- Push (4 tests) ---
+
+func TestE2E_PushBasic(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+arr << [5]
+|> str(arr)`)
+	if got != "[1, 2, 3, 5]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3, 5]", got)
+	}
+}
+
+func TestE2E_PushToEmpty(t *testing.T) {
+	got := runE2E(t, `arr = []
+arr << [1]
+|> str(arr)`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_PushThenLength(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2]
+arr << [3]
+|> str(#arr)`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_PushInsideLoop(t *testing.T) {
+	got := runE2E(t, `arr = []
+for x in [10, 20, 30] {
+	arr << x
+}
+|> str(arr)`)
+	if got != "[10, 20, 30]" {
+		t.Fatalf("expected %q, got %q", "[10, 20, 30]", got)
+	}
+}
+
+// --- Pop (4 tests) ---
+
+func TestE2E_PopReturnsLast(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+x = >>arr
+|> str(x)`)
+	if got != "3" {
+		t.Fatalf("expected %q, got %q", "3", got)
+	}
+}
+
+func TestE2E_PopModifiesArray(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+x = >>arr
+|> str(arr)`)
+	if got != "[1, 2]" {
+		t.Fatalf("expected %q, got %q", "[1, 2]", got)
+	}
+}
+
+func TestE2E_PopMultiple(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+a = >>arr
+b = >>arr
+|> str(a)
+|> str(b)
+|> str(arr)`)
+	if got != "3\n2\n1" {
+		t.Fatalf("expected %q, got %q", "3\n2\n1", got)
+	}
+}
+
+func TestE2E_PanicPopEmpty(t *testing.T) {
+	runE2EExpectPanic(t, `arr = []
+x = >>arr`)
+}
+
+// --- RemoveAt (4 tests) ---
+
+func TestE2E_RemoveAtFirst(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+removed = arr ~@ [0]
+|> str(removed)
+|> str(arr)`)
+	if got != "10\n[20, 30]" {
+		t.Fatalf("expected %q, got %q", "10\n[20, 30]", got)
+	}
+}
+
+func TestE2E_RemoveAtMiddle(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+removed = arr ~@ [1]
+|> str(removed)
+|> str(arr)`)
+	if got != "20\n[10, 30]" {
+		t.Fatalf("expected %q, got %q", "20\n[10, 30]", got)
+	}
+}
+
+func TestE2E_RemoveAtLast(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+removed = arr ~@ [2]
+|> str(removed)
+|> str(arr)`)
+	if got != "30\n[10, 20]" {
+		t.Fatalf("expected %q, got %q", "30\n[10, 20]", got)
+	}
+}
+
+func TestE2E_PanicRemoveAtOutOfBounds(t *testing.T) {
+	runE2EExpectPanic(t, `arr = [10, 20, 30]
+removed = arr ~@ [5]`)
+}
+
+// --- Slice (6 tests) ---
+
+func TestE2E_SliceBasic(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30, 40]
+|> str(arr::1::3)`)
+	if got != "[20, 30]" {
+		t.Fatalf("expected %q, got %q", "[20, 30]", got)
+	}
+}
+
+func TestE2E_SliceFromStart(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30, 40]
+|> str(arr::0::2)`)
+	if got != "[10, 20]" {
+		t.Fatalf("expected %q, got %q", "[10, 20]", got)
+	}
+}
+
+func TestE2E_SliceToEnd(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30, 40]
+|> str(arr::2::4)`)
+	if got != "[30, 40]" {
+		t.Fatalf("expected %q, got %q", "[30, 40]", got)
+	}
+}
+
+func TestE2E_SliceFull(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30, 40]
+|> str(arr::0::4)`)
+	if got != "[10, 20, 30, 40]" {
+		t.Fatalf("expected %q, got %q", "[10, 20, 30, 40]", got)
+	}
+}
+
+func TestE2E_SliceEmpty(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30, 40]
+|> str(arr::2::2)`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_PanicSliceOutOfBounds(t *testing.T) {
+	runE2EExpectPanic(t, `arr = [10, 20, 30, 40]
+x = arr::0::10`)
+}
+
+// --- Concat (4 tests) ---
+
+func TestE2E_ConcatBasic(t *testing.T) {
+	got := runE2E(t, `|> str([1, 2] ++ [3, 4])`)
+	if got != "[1, 2, 3, 4]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3, 4]", got)
+	}
+}
+
+func TestE2E_ConcatWithEmpty(t *testing.T) {
+	got := runE2E(t, `|> str([] ++ [1])`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ConcatStrings(t *testing.T) {
+	got := runE2E(t, `|> str(["a"] ++ ["b"])`)
+	if got != "[a, b]" {
+		t.Fatalf("expected %q, got %q", "[a, b]", got)
+	}
+}
+
+func TestE2E_ConcatChained(t *testing.T) {
+	got := runE2E(t, `|> str(([1] ++ [2]) ++ [3])`)
+	if got != "[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]", got)
+	}
+}
+
+// --- Remove (3 tests) ---
+
+func TestE2E_RemoveExisting(t *testing.T) {
+	got := runE2E(t, `|> str([1, 2, 3] -- [2])`)
+	if got != "[1, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 3]", got)
+	}
+}
+
+func TestE2E_RemoveNonExistent(t *testing.T) {
+	got := runE2E(t, `|> str([1, 2, 3] -- [5])`)
+	if got != "[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]", got)
+	}
+}
+
+func TestE2E_RemoveDuplicate(t *testing.T) {
+	got := runE2E(t, `|> str([1, 2, 3, 2] -- [2])`)
+	if got != "[1, 3, 2]" {
+		t.Fatalf("expected %q, got %q", "[1, 3, 2]", got)
+	}
+}
+
+// --- Contains (4 tests) ---
+
+func TestE2E_ContainsExisting(t *testing.T) {
+	got := runE2E(t, `|> str([1, 2, 3] ?? [2])`)
+	if got != "1" {
+		t.Fatalf("expected %q, got %q", "1", got)
+	}
+}
+
+func TestE2E_ContainsNonExistent(t *testing.T) {
+	got := runE2E(t, `|> str([1, 2, 3] ?? [5])`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_ContainsInIf(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+if arr ?? [2] {
+	|> "found"
+}`)
+	if got != "found" {
+		t.Fatalf("expected %q, got %q", "found", got)
+	}
+}
+
+func TestE2E_ContainsOnEmpty(t *testing.T) {
+	got := runE2E(t, `|> str([] ?? [1])`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+// --- Unique (3 tests) ---
+
+func TestE2E_UniqueWithDups(t *testing.T) {
+	got := runE2E(t, `|> str(~[1, 2, 2, 3, 1])`)
+	if got != "[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]", got)
+	}
+}
+
+func TestE2E_UniqueEmpty(t *testing.T) {
+	got := runE2E(t, `|> str(~[])`)
+	if got != "[]" {
+		t.Fatalf("expected %q, got %q", "[]", got)
+	}
+}
+
+func TestE2E_UniqueAlreadyUnique(t *testing.T) {
+	got := runE2E(t, `|> str(~[1, 2, 3])`)
+	if got != "[1, 2, 3]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3]", got)
+	}
+}
+
+// --- Combined / Integration (10 tests) ---
+
+func TestE2E_PushThenIterate(t *testing.T) {
+	got := runE2E(t, `arr = []
+arr << [1]
+arr << [2]
+arr << [3]
+for x in arr {
+	|> str(x)
+}`)
+	if got != "1\n2\n3" {
+		t.Fatalf("expected %q, got %q", "1\n2\n3", got)
+	}
+}
+
+func TestE2E_FilterPattern(t *testing.T) {
+	got := runE2E(t, `src = [1, 2, 3, 4, 5]
+evens = []
+for x in src {
+	if x % [2] == [0] {
+		evens << x
+	}
+}
+|> str(evens)`)
+	if got != "[2, 4]" {
+		t.Fatalf("expected %q, got %q", "[2, 4]", got)
+	}
+}
+
+func TestE2E_FnReturnsArrayCallerIndexes(t *testing.T) {
+	got := runE2E(t, `fn pair() {
+	<- [100, 200]
+}
+|> str(pair()@0)
+|> str(pair()@1)`)
+	if got != "100\n200" {
+		t.Fatalf("expected %q, got %q", "100\n200", got)
+	}
+}
+
+func TestE2E_SliceThenConcat(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30, 40]
+left = arr::0::2
+right = arr::2::4
+combined = left ++ right
+|> str(combined)`)
+	if got != "[10, 20, 30, 40]" {
+		t.Fatalf("expected %q, got %q", "[10, 20, 30, 40]", got)
+	}
+}
+
+func TestE2E_AccumulatePattern(t *testing.T) {
+	got := runE2E(t, `result = []
+i = [1]
+for {
+	if i > [5] {
+		break
+	}
+	result << i
+	i = i + [1]
+}
+|> str(result)`)
+	if got != "[1, 2, 3, 4, 5]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3, 4, 5]", got)
+	}
+}
+
+func TestE2E_FnWithArrayManip(t *testing.T) {
+	got := runE2E(t, `fn reverse(arr) {
+	result = []
+	i = #arr - [1]
+	for {
+		if i < [0] {
+			break
+		}
+		result << arr@i
+		i = i - [1]
+	}
+	<- result
+}
+|> str(reverse([1, 2, 3]))`)
+	if got != "[3, 2, 1]" {
+		t.Fatalf("expected %q, got %q", "[3, 2, 1]", got)
+	}
+}
+
+func TestE2E_IndexSetThenRead(t *testing.T) {
+	got := runE2E(t, `arr = [10, 20, 30]
+arr@0 = [99]
+arr@2 = [77]
+|> str(arr@0)
+|> str(arr@1)
+|> str(arr@2)`)
+	if got != "99\n20\n77" {
+		t.Fatalf("expected %q, got %q", "99\n20\n77", got)
+	}
+}
+
+func TestE2E_ContainsInFilterLoop(t *testing.T) {
+	got := runE2E(t, `allowed = [2, 4, 6]
+src = [1, 2, 3, 4, 5, 6]
+filtered = []
+for x in src {
+	if allowed ?? x {
+		filtered << x
+	}
+}
+|> str(filtered)`)
+	if got != "[2, 4, 6]" {
+		t.Fatalf("expected %q, got %q", "[2, 4, 6]", got)
+	}
+}
+
+func TestE2E_PopInLoop(t *testing.T) {
+	got := runE2E(t, `arr = [1, 2, 3]
+result = []
+for {
+	if #arr == [0] {
+		break
+	}
+	x = >>arr
+	result << x
+}
+|> str(result)`)
+	if got != "[3, 2, 1]" {
+		t.Fatalf("expected %q, got %q", "[3, 2, 1]", got)
+	}
+}
+
+func TestE2E_UniqueAfterConcat(t *testing.T) {
+	got := runE2E(t, `a = [1, 2, 3]
+b = [2, 3, 4]
+combined = a ++ b
+|> str(~combined)`)
+	if got != "[1, 2, 3, 4]" {
+		t.Fatalf("expected %q, got %q", "[1, 2, 3, 4]", got)
+	}
+}
+
+// --- arrays.slop example (roadmap) ---
+
+func TestE2E_ArraysSlopExample(t *testing.T) {
+	src := `arr = [10, 20, 30, 40]
+|> str(arr@0)
+|> str(#arr)
+
+arr << [50]
+|> str(arr)
+
+sub = arr::1::3
+|> str(sub)
+
+combined = [1, 2] ++ [3, 4]
+|> str(combined)
+
+has = arr ?? [20]
+|> str(has)
+
+uniq = ~[1, 2, 2, 3, 1]
+|> str(uniq)`
+	got := runE2E(t, src)
+	expected := "10\n4\n[10, 20, 30, 40, 50]\n[20, 30]\n[1, 2, 3, 4]\n1\n[1, 2, 3]"
 	if got != expected {
 		t.Fatalf("expected %q, got %q", expected, got)
 	}

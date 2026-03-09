@@ -270,14 +270,15 @@ func TestLexer_Parentheses(t *testing.T) {
 }
 
 func TestLexer_OperatorDisambiguation(t *testing.T) {
-	l := New(`= == ! != * ** |> || < <= <- > >=`)
+	l := New(`= == ! != * ** |> || < <= <- << > >= >>`)
 	expected := []struct {
 		typ TokenType
 		lit string
 	}{
 		{TOKEN_ASSIGN, "="}, {TOKEN_EQ, "=="}, {TOKEN_NOT, "!"}, {TOKEN_NEQ, "!="},
 		{TOKEN_STAR, "*"}, {TOKEN_POWER, "**"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_OR, "||"},
-		{TOKEN_LT, "<"}, {TOKEN_LTE, "<="}, {TOKEN_RETURN, "<-"}, {TOKEN_GT, ">"}, {TOKEN_GTE, ">="},
+		{TOKEN_LT, "<"}, {TOKEN_LTE, "<="}, {TOKEN_RETURN, "<-"}, {TOKEN_LSHIFT, "<<"},
+		{TOKEN_GT, ">"}, {TOKEN_GTE, ">="}, {TOKEN_RSHIFT, ">>"},
 		{TOKEN_EOF, ""},
 	}
 	for i, exp := range expected {
@@ -403,6 +404,97 @@ func TestLexer_InfiniteLoop(t *testing.T) {
 		lit string
 	}{
 		{TOKEN_FOR, "for"}, {TOKEN_LBRACE, "{"}, {TOKEN_BREAK, "break"}, {TOKEN_RBRACE, "}"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_ArrayOperators(t *testing.T) {
+	l := New(`@ # << >> ~@ :: ++ -- ~ ??`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_AT, "@"}, {TOKEN_HASH, "#"}, {TOKEN_LSHIFT, "<<"},
+		{TOKEN_RSHIFT, ">>"}, {TOKEN_TILDE_AT, "~@"}, {TOKEN_DCOLON, "::"},
+		{TOKEN_CONCAT, "++"}, {TOKEN_REMOVE, "--"}, {TOKEN_TILDE, "~"},
+		{TOKEN_CONTAINS, "??"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_ArrayOperatorDisambiguation(t *testing.T) {
+	l := New(`< << <= <- > >> >= + ++ - -- ~ ~@`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_LT, "<"}, {TOKEN_LSHIFT, "<<"}, {TOKEN_LTE, "<="}, {TOKEN_RETURN, "<-"},
+		{TOKEN_GT, ">"}, {TOKEN_RSHIFT, ">>"}, {TOKEN_GTE, ">="},
+		{TOKEN_PLUS, "+"}, {TOKEN_CONCAT, "++"}, {TOKEN_MINUS, "-"}, {TOKEN_REMOVE, "--"},
+		{TOKEN_TILDE, "~"}, {TOKEN_TILDE_AT, "~@"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_HashArr(t *testing.T) {
+	l := New(`#arr`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_HASH, "#"}, {TOKEN_IDENT, "arr"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_IndexExpr(t *testing.T) {
+	l := New(`arr@0`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IDENT, "arr"}, {TOKEN_AT, "@"}, {TOKEN_INT, "0"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_PushExpr(t *testing.T) {
+	l := New(`arr << [5]`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IDENT, "arr"}, {TOKEN_LSHIFT, "<<"}, {TOKEN_LBRACKET, "["}, {TOKEN_INT, "5"}, {TOKEN_RBRACKET, "]"},
 		{TOKEN_EOF, ""},
 	}
 	for i, exp := range expected {

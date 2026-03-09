@@ -51,6 +51,18 @@ const (
 	// Return
 	TOKEN_RETURN // <-
 
+	// Array operators
+	TOKEN_AT       // @
+	TOKEN_HASH     // #
+	TOKEN_LSHIFT   // <<
+	TOKEN_RSHIFT   // >>
+	TOKEN_TILDE_AT // ~@
+	TOKEN_DCOLON   // ::
+	TOKEN_CONCAT   // ++
+	TOKEN_REMOVE   // --
+	TOKEN_TILDE    // ~
+	TOKEN_CONTAINS // ??
+
 	// Keywords
 	TOKEN_TRUE  // true
 	TOKEN_FALSE // false
@@ -95,6 +107,16 @@ var tokenNames = map[TokenType]string{
 	TOKEN_LBRACE:   "LBRACE",
 	TOKEN_RBRACE:   "RBRACE",
 	TOKEN_RETURN:   "RETURN",
+	TOKEN_AT:       "AT",
+	TOKEN_HASH:     "HASH",
+	TOKEN_LSHIFT:   "LSHIFT",
+	TOKEN_RSHIFT:   "RSHIFT",
+	TOKEN_TILDE_AT: "TILDE_AT",
+	TOKEN_DCOLON:   "DCOLON",
+	TOKEN_CONCAT:   "CONCAT",
+	TOKEN_REMOVE:   "REMOVE",
+	TOKEN_TILDE:    "TILDE",
+	TOKEN_CONTAINS: "CONTAINS",
 	TOKEN_TRUE:     "TRUE",
 	TOKEN_FALSE:    "FALSE",
 	TOKEN_FN:       "FN",

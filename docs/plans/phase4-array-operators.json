@@ -1,0 +1,93 @@
+[
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes @, #, <<, >>, ~@, ::, ++, --, ~, ?? operators with correct disambiguation",
+    "steps": [
+      "Tokenize @ as TOKEN_AT and # as TOKEN_HASH",
+      "Tokenize << as TOKEN_LSHIFT and >> as TOKEN_RSHIFT",
+      "Tokenize ~@ as TOKEN_TILDE_AT and ~ as TOKEN_TILDE",
+      "Tokenize :: as TOKEN_DCOLON",
+      "Tokenize ++ as TOKEN_CONCAT and -- as TOKEN_REMOVE",
+      "Tokenize ?? as TOKEN_CONTAINS",
+      "Disambiguate < vs << vs <= vs <-",
+      "Disambiguate > vs >> vs >=",
+      "Disambiguate + vs ++ and - vs --",
+      "Disambiguate ~ vs ~@"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces correct AST for index, index-set, push, pop, slice, concat, remove, contains, unique, length, remove-at",
+    "steps": [
+      "Parse arr@0 into IndexExpr",
+      "Parse arr@0 = val into IndexSetStmt",
+      "Parse #arr into UnaryExpr with op #",
+      "Parse arr << [5] into PushStmt",
+      "Parse >>arr into PopExpr",
+      "Parse arr::1::3 into SliceExpr",
+      "Parse [1,2] ++ [3,4] into BinaryExpr with op ++",
+      "Parse arr -- [5] into BinaryExpr with op --",
+      "Parse ~arr into UnaryExpr with op ~",
+      "Parse arr ?? [5] into BinaryExpr with op ??",
+      "Parse arr ~@ 2 into BinaryExpr with op ~@"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Runtime supports Index, IndexSet, Length, Push, Pop, RemoveAt, Slice, Concat, Remove, Contains, Unique",
+    "steps": [
+      "Index returns correct element wrapped as *SlopValue",
+      "IndexSet mutates array element at index",
+      "Length returns element count as [n]",
+      "Push appends elements to array",
+      "Pop removes and returns last element",
+      "RemoveAt removes and returns element at index",
+      "Slice returns sub-array from low to high",
+      "Concat returns new array with all elements of both",
+      "Remove returns new array with first occurrence removed",
+      "Contains returns [1] or [] based on membership",
+      "Unique returns deduplicated array"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen lowers IndexExpr, IndexSetStmt, PushStmt, PopExpr, SliceExpr and binary/unary array ops to sloprt calls",
+    "steps": [
+      "Lower IndexExpr to sloprt.Index()",
+      "Lower IndexSetStmt to sloprt.IndexSet()",
+      "Lower PushStmt to sloprt.Push()",
+      "Lower PopExpr to sloprt.Pop()",
+      "Lower SliceExpr to sloprt.Slice()",
+      "Lower ++ to sloprt.Concat()",
+      "Lower -- to sloprt.Remove()",
+      "Lower ?? to sloprt.Contains()",
+      "Lower ~@ to sloprt.RemoveAt()",
+      "Lower # to sloprt.Length()",
+      "Lower ~ to sloprt.Unique()"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "50+ e2e tests covering index, index-set, push, pop, remove-at, slice, concat, remove, contains, unique, length, and combined patterns",
+    "steps": [
+      "Index: numeric index, nested array, out of bounds panic",
+      "IndexSet: set element, verify mutation",
+      "Length: non-empty, empty, in expression",
+      "Push: single element, empty array, inside loop",
+      "Pop: returns last, modifies array, empty panic",
+      "RemoveAt: first, middle, last, out of bounds panic",
+      "Slice: basic, from start, to end, empty slice, out of bounds panic",
+      "Concat: basic, with empty, strings",
+      "Remove: existing, non-existent, duplicates",
+      "Contains: existing, non-existent, empty, in if condition",
+      "Unique: with duplicates, empty, already unique",
+      "Combined: arrays.slop roadmap test, push+iterate, filter pattern",
+      "Edge cases: chained operations, fn returning array + index"
+    ],
+    "passes": true
+  }
+]
