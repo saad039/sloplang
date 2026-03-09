@@ -61,6 +61,13 @@ func (p *Parser) parseAssignStatement() *AssignStmt {
 	return &AssignStmt{Name: name, Value: value}
 }
 
+func (p *Parser) peekToken() lexer.Token {
+	if p.pos+1 >= len(p.tokens) {
+		return lexer.Token{Type: lexer.TOKEN_EOF}
+	}
+	return p.tokens[p.pos+1]
+}
+
 func (p *Parser) parseStdoutWriteStatement() *StdoutWriteStmt {
 	p.advance() // consume '|>'
 
@@ -73,7 +80,180 @@ func (p *Parser) parseStdoutWriteStatement() *StdoutWriteStmt {
 }
 
 func (p *Parser) parseExpression() Expr {
+	return p.parseOr()
+}
+
+func (p *Parser) parseOr() Expr {
+	left := p.parseAnd()
+	if left == nil {
+		return nil
+	}
+	for p.curToken().Type == lexer.TOKEN_OR {
+		op := p.curToken().Literal
+		p.advance()
+		right := p.parseAnd()
+		if right == nil {
+			return nil
+		}
+		left = &BinaryExpr{Left: left, Op: op, Right: right}
+	}
+	return left
+}
+
+func (p *Parser) parseAnd() Expr {
+	left := p.parseComparison()
+	if left == nil {
+		return nil
+	}
+	for p.curToken().Type == lexer.TOKEN_AND {
+		op := p.curToken().Literal
+		p.advance()
+		right := p.parseComparison()
+		if right == nil {
+			return nil
+		}
+		left = &BinaryExpr{Left: left, Op: op, Right: right}
+	}
+	return left
+}
+
+func (p *Parser) parseComparison() Expr {
+	left := p.parseAddSub()
+	if left == nil {
+		return nil
+	}
+	for p.curToken().Type == lexer.TOKEN_EQ ||
+		p.curToken().Type == lexer.TOKEN_NEQ ||
+		p.curToken().Type == lexer.TOKEN_LT ||
+		p.curToken().Type == lexer.TOKEN_GT ||
+		p.curToken().Type == lexer.TOKEN_LTE ||
+		p.curToken().Type == lexer.TOKEN_GTE {
+		op := p.curToken().Literal
+		p.advance()
+		right := p.parseAddSub()
+		if right == nil {
+			return nil
+		}
+		left = &BinaryExpr{Left: left, Op: op, Right: right}
+	}
+	return left
+}
+
+func (p *Parser) parseAddSub() Expr {
+	left := p.parseMulDivMod()
+	if left == nil {
+		return nil
+	}
+	for p.curToken().Type == lexer.TOKEN_PLUS ||
+		p.curToken().Type == lexer.TOKEN_MINUS {
+		op := p.curToken().Literal
+		p.advance()
+		right := p.parseMulDivMod()
+		if right == nil {
+			return nil
+		}
+		left = &BinaryExpr{Left: left, Op: op, Right: right}
+	}
+	return left
+}
+
+func (p *Parser) parseMulDivMod() Expr {
+	left := p.parsePower()
+	if left == nil {
+		return nil
+	}
+	for p.curToken().Type == lexer.TOKEN_STAR ||
+		p.curToken().Type == lexer.TOKEN_SLASH ||
+		p.curToken().Type == lexer.TOKEN_PERCENT {
+		op := p.curToken().Literal
+		p.advance()
+		right := p.parsePower()
+		if right == nil {
+			return nil
+		}
+		left = &BinaryExpr{Left: left, Op: op, Right: right}
+	}
+	return left
+}
+
+func (p *Parser) parsePower() Expr {
+	base := p.parseUnary()
+	if base == nil {
+		return nil
+	}
+	if p.curToken().Type == lexer.TOKEN_POWER {
+		op := p.curToken().Literal
+		p.advance()
+		exp := p.parsePower() // right-associative
+		if exp == nil {
+			return nil
+		}
+		return &BinaryExpr{Left: base, Op: op, Right: exp}
+	}
+	return base
+}
+
+func (p *Parser) parseUnary() Expr {
+	if p.curToken().Type == lexer.TOKEN_MINUS ||
+		p.curToken().Type == lexer.TOKEN_NOT {
+		op := p.curToken().Literal
+		p.advance()
+		operand := p.parseUnary()
+		if operand == nil {
+			return nil
+		}
+		return &UnaryExpr{Op: op, Operand: operand}
+	}
+	return p.parseCall()
+}
+
+func (p *Parser) parseCall() Expr {
+	if p.curToken().Type == lexer.TOKEN_IDENT && p.peekToken().Type == lexer.TOKEN_LPAREN {
+		name := p.curToken().Literal
+		p.advance() // consume ident
+		p.advance() // consume '('
+
+		var args []Expr
+		if p.curToken().Type != lexer.TOKEN_RPAREN {
+			arg := p.parseExpression()
+			if arg == nil {
+				return nil
+			}
+			args = append(args, arg)
+			for p.curToken().Type == lexer.TOKEN_COMMA {
+				p.advance()
+				arg = p.parseExpression()
+				if arg == nil {
+					return nil
+				}
+				args = append(args, arg)
+			}
+		}
+
+		if p.curToken().Type != lexer.TOKEN_RPAREN {
+			p.addError("expected ')', got %s at line %d", p.curToken().Type, p.curToken().Line)
+			return nil
+		}
+		p.advance() // consume ')'
+		return &CallExpr{Name: name, Args: args}
+	}
+	return p.parsePrimary()
+}
+
+func (p *Parser) parsePrimary() Expr {
 	switch p.curToken().Type {
+	case lexer.TOKEN_LPAREN:
+		p.advance() // consume '('
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil
+		}
+		if p.curToken().Type != lexer.TOKEN_RPAREN {
+			p.addError("expected ')', got %s at line %d", p.curToken().Type, p.curToken().Line)
+			return nil
+		}
+		p.advance() // consume ')'
+		return expr
 	case lexer.TOKEN_LBRACKET:
 		return p.parseArrayLiteral()
 	case lexer.TOKEN_STRING:
@@ -82,9 +262,7 @@ func (p *Parser) parseExpression() Expr {
 		return p.parseNumberLiteral()
 	case lexer.TOKEN_IDENT:
 		return p.parseIdentifier()
-	case lexer.TOKEN_TRUE:
-		return p.parseBoolLiteral()
-	case lexer.TOKEN_FALSE:
+	case lexer.TOKEN_TRUE, lexer.TOKEN_FALSE:
 		return p.parseBoolLiteral()
 	default:
 		p.addError("unexpected token %s (%q) in expression at line %d", p.curToken().Type, p.curToken().Literal, p.curToken().Line)

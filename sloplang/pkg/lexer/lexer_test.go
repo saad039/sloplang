@@ -198,3 +198,109 @@ func TestLexer_Tokenize(t *testing.T) {
 		t.Fatal("last token should be EOF")
 	}
 }
+
+func TestLexer_ArithmeticOperators(t *testing.T) {
+	l := New(`+ - * / % **`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_PLUS, "+"}, {TOKEN_MINUS, "-"}, {TOKEN_STAR, "*"},
+		{TOKEN_SLASH, "/"}, {TOKEN_PERCENT, "%"}, {TOKEN_POWER, "**"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_ComparisonOperators(t *testing.T) {
+	l := New(`== != < > <= >=`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_EQ, "=="}, {TOKEN_NEQ, "!="}, {TOKEN_LT, "<"},
+		{TOKEN_GT, ">"}, {TOKEN_LTE, "<="}, {TOKEN_GTE, ">="},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_LogicalOperators(t *testing.T) {
+	l := New(`&& || !`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_AND, "&&"}, {TOKEN_OR, "||"}, {TOKEN_NOT, "!"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_Parentheses(t *testing.T) {
+	l := New(`( )`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_LPAREN, "("}, {TOKEN_RPAREN, ")"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_OperatorDisambiguation(t *testing.T) {
+	l := New(`= == ! != * ** |> || < <= > >=`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_ASSIGN, "="}, {TOKEN_EQ, "=="}, {TOKEN_NOT, "!"}, {TOKEN_NEQ, "!="},
+		{TOKEN_STAR, "*"}, {TOKEN_POWER, "**"}, {TOKEN_PIPE_GT, "|>"}, {TOKEN_OR, "||"},
+		{TOKEN_LT, "<"}, {TOKEN_LTE, "<="}, {TOKEN_GT, ">"}, {TOKEN_GTE, ">="},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}
+
+func TestLexer_FunctionCall(t *testing.T) {
+	l := New(`str(x)`)
+	expected := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TOKEN_IDENT, "str"}, {TOKEN_LPAREN, "("}, {TOKEN_IDENT, "x"}, {TOKEN_RPAREN, ")"},
+		{TOKEN_EOF, ""},
+	}
+	for i, exp := range expected {
+		tok := l.NextToken()
+		if tok.Type != exp.typ || tok.Literal != exp.lit {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.typ, exp.lit, tok.Type, tok.Literal)
+		}
+	}
+}

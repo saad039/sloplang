@@ -108,3 +108,64 @@ func TestCodegen_StdoutWriteIdent(t *testing.T) {
 		t.Fatalf("expected sloprt.StdoutWrite(x), got:\n%s", out)
 	}
 }
+
+func TestCodegen_BinaryAllOps(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`x = [1] + [2]`, "sloprt.Add("},
+		{`x = [1] - [2]`, "sloprt.Sub("},
+		{`x = [1] * [2]`, "sloprt.Mul("},
+		{`x = [1] / [2]`, "sloprt.Div("},
+		{`x = [1] % [2]`, "sloprt.Mod("},
+		{`x = [1] ** [2]`, "sloprt.Pow("},
+		{`x = [1] == [2]`, "sloprt.Eq("},
+		{`x = [1] != [2]`, "sloprt.Neq("},
+		{`x = [1] < [2]`, "sloprt.Lt("},
+		{`x = [1] > [2]`, "sloprt.Gt("},
+		{`x = [1] <= [2]`, "sloprt.Lte("},
+		{`x = [1] >= [2]`, "sloprt.Gte("},
+		{`x = [1] && [2]`, "sloprt.And("},
+		{`x = [1] || [2]`, "sloprt.Or("},
+	}
+	for _, tc := range tests {
+		out, err := generate(tc.input)
+		if err != nil {
+			t.Fatalf("input %q: codegen error: %v", tc.input, err)
+		}
+		if !strings.Contains(out, tc.expected) {
+			t.Fatalf("input %q: expected %q, got:\n%s", tc.input, tc.expected, out)
+		}
+	}
+}
+
+func TestCodegen_UnaryNegate(t *testing.T) {
+	out, err := generate(`x = -[1]`)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Negate(") {
+		t.Fatalf("expected sloprt.Negate, got:\n%s", out)
+	}
+}
+
+func TestCodegen_UnaryNot(t *testing.T) {
+	out, err := generate(`x = ![1]`)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Not(") {
+		t.Fatalf("expected sloprt.Not, got:\n%s", out)
+	}
+}
+
+func TestCodegen_CallStr(t *testing.T) {
+	out, err := generate(`|> str([1])`)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	if !strings.Contains(out, "sloprt.Str(") {
+		t.Fatalf("expected sloprt.Str, got:\n%s", out)
+	}
+}

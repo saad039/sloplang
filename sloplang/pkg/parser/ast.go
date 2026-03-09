@@ -87,3 +87,31 @@ type Identifier struct {
 
 func (id *Identifier) exprNode()            {}
 func (id *Identifier) TokenLiteral() string { return id.Name }
+
+// BinaryExpr represents: left op right
+type BinaryExpr struct {
+	Left  Expr
+	Op    string
+	Right Expr
+}
+
+func (be *BinaryExpr) exprNode()            {}
+func (be *BinaryExpr) TokenLiteral() string { return be.Op }
+
+// UnaryExpr represents: op operand (prefix)
+type UnaryExpr struct {
+	Op      string
+	Operand Expr
+}
+
+func (ue *UnaryExpr) exprNode()            {}
+func (ue *UnaryExpr) TokenLiteral() string { return ue.Op }
+
+// CallExpr represents: name(args...)
+type CallExpr struct {
+	Name string
+	Args []Expr
+}
+
+func (ce *CallExpr) exprNode()            {}
+func (ce *CallExpr) TokenLiteral() string { return ce.Name }

@@ -50,6 +50,11 @@ func (l *Lexer) NextToken() Token {
 		l.skipComment()
 		return l.NextToken()
 
+	case l.ch == '/':
+		tok.Type = TOKEN_SLASH
+		tok.Literal = "/"
+		l.readChar()
+
 	case l.ch == '[':
 		tok.Type = TOKEN_LBRACKET
 		tok.Literal = "["
@@ -65,16 +70,113 @@ func (l *Lexer) NextToken() Token {
 		tok.Literal = ","
 		l.readChar()
 
-	case l.ch == '=':
-		tok.Type = TOKEN_ASSIGN
-		tok.Literal = "="
+	case l.ch == '(':
+		tok.Type = TOKEN_LPAREN
+		tok.Literal = "("
 		l.readChar()
 
-	case l.ch == '|' && l.peekChar() == '>':
-		tok.Type = TOKEN_PIPE_GT
-		tok.Literal = "|>"
+	case l.ch == ')':
+		tok.Type = TOKEN_RPAREN
+		tok.Literal = ")"
+		l.readChar()
+
+	case l.ch == '+':
+		tok.Type = TOKEN_PLUS
+		tok.Literal = "+"
+		l.readChar()
+
+	case l.ch == '-':
+		tok.Type = TOKEN_MINUS
+		tok.Literal = "-"
+		l.readChar()
+
+	case l.ch == '*':
+		if l.peekChar() == '*' {
+			tok.Type = TOKEN_POWER
+			tok.Literal = "**"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_STAR
+			tok.Literal = "*"
+			l.readChar()
+		}
+
+	case l.ch == '%':
+		tok.Type = TOKEN_PERCENT
+		tok.Literal = "%"
+		l.readChar()
+
+	case l.ch == '=':
+		if l.peekChar() == '=' {
+			tok.Type = TOKEN_EQ
+			tok.Literal = "=="
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_ASSIGN
+			tok.Literal = "="
+			l.readChar()
+		}
+
+	case l.ch == '!':
+		if l.peekChar() == '=' {
+			tok.Type = TOKEN_NEQ
+			tok.Literal = "!="
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_NOT
+			tok.Literal = "!"
+			l.readChar()
+		}
+
+	case l.ch == '<':
+		if l.peekChar() == '=' {
+			tok.Type = TOKEN_LTE
+			tok.Literal = "<="
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_LT
+			tok.Literal = "<"
+			l.readChar()
+		}
+
+	case l.ch == '>':
+		if l.peekChar() == '=' {
+			tok.Type = TOKEN_GTE
+			tok.Literal = ">="
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_GT
+			tok.Literal = ">"
+			l.readChar()
+		}
+
+	case l.ch == '&' && l.peekChar() == '&':
+		tok.Type = TOKEN_AND
+		tok.Literal = "&&"
 		l.readChar()
 		l.readChar()
+
+	case l.ch == '|':
+		if l.peekChar() == '>' {
+			tok.Type = TOKEN_PIPE_GT
+			tok.Literal = "|>"
+			l.readChar()
+			l.readChar()
+		} else if l.peekChar() == '|' {
+			tok.Type = TOKEN_OR
+			tok.Literal = "||"
+			l.readChar()
+			l.readChar()
+		} else {
+			tok.Type = TOKEN_ILLEGAL
+			tok.Literal = string(l.ch)
+			l.readChar()
+		}
 
 	case l.ch == '"':
 		tok.Type = TOKEN_STRING

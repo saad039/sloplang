@@ -1,0 +1,78 @@
+[
+  {
+    "category": "lexer",
+    "description": "Lexer tokenizes all arithmetic, comparison, logical operators and parens",
+    "steps": [
+      "Tokenize +, -, *, /, %, **",
+      "Tokenize ==, !=, <, >, <=, >=",
+      "Tokenize &&, ||, !",
+      "Tokenize (, )",
+      "Disambiguate = vs ==, ! vs !=, * vs **, |> vs ||, < vs <=, > vs >=",
+      "Tokenize str(x) as IDENT LPAREN IDENT RPAREN"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Parser produces correct AST with operator precedence via recursive descent",
+    "steps": [
+      "Parse binary + into BinaryExpr",
+      "Parse * before + (precedence)",
+      "Parse unary - into UnaryExpr",
+      "Parse unary ! into UnaryExpr",
+      "Parse str(x) into CallExpr",
+      "Parse (expr) for grouping",
+      "Parse all comparison ops into BinaryExpr",
+      "Parse && and || into BinaryExpr",
+      "Parse || before && (precedence)",
+      "Parse ** as right-associative",
+      "Parse double unary --[5]",
+      "Parse |> with full expressions"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Runtime implements all arithmetic, comparison, logical operations and Str",
+    "steps": [
+      "Add, Sub, Mul, Div, Mod, Pow element-wise same-length",
+      "Negate unary on all numeric types",
+      "Panic on length mismatch",
+      "Panic on type mismatch",
+      "Eq, Neq, Lt, Gt, Lte, Gte single-element only",
+      "Comparison returns [1] or []",
+      "String equality and inequality",
+      "Panic on multi-element comparison",
+      "And, Or, Not operate on truthiness",
+      "Str returns FormatValue wrapped as string SlopValue"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Codegen lowers BinaryExpr, UnaryExpr, CallExpr to sloprt calls",
+    "steps": [
+      "Lower all 14 binary ops to sloprt.X(left, right)",
+      "Lower unary - to sloprt.Negate(operand)",
+      "Lower unary ! to sloprt.Not(operand)",
+      "Lower str() call to sloprt.Str(arg)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "58 e2e tests covering arithmetic, unary, comparisons, logic, precedence, str, chained",
+    "steps": [
+      "12 arithmetic tests pass (add, sub, mul, div, mod, pow, single, zero, long, float, uint)",
+      "6 unary tests pass (negate, zero, negative, double, float, not-falsy)",
+      "4 not tests pass (truthy, zero-truthy, double-not-truthy, double-not-falsy)",
+      "14 comparison tests pass (eq, neq, lt, gt, lte, gte true/false, string eq/neq)",
+      "6 logical tests pass (and both, and-right-falsy, and-left-falsy, or-left-falsy, or-left-truthy, or-both-falsy)",
+      "8 precedence tests pass (mul-before-add, parens, left-assoc, power, arith-before-cmp, cmp-before-logic, and-before-or)",
+      "4 str tests pass (array, single, empty, expr-result)",
+      "4 chained tests pass (add, mul-div, logical, unary-then-binary)",
+      "math.slop roadmap e2e test passes"
+    ],
+    "passes": true
+  }
+]

@@ -4,7 +4,7 @@ package lexer
 type TokenType int
 
 const (
-	TOKEN_EOF     TokenType = iota
+	TOKEN_EOF TokenType = iota
 	TOKEN_ILLEGAL
 
 	// Literals
@@ -20,6 +20,31 @@ const (
 	TOKEN_LBRACKET // [
 	TOKEN_RBRACKET // ]
 	TOKEN_COMMA    // ,
+
+	// Arithmetic
+	TOKEN_PLUS    // +
+	TOKEN_MINUS   // -
+	TOKEN_STAR    // *
+	TOKEN_SLASH   // /
+	TOKEN_PERCENT // %
+	TOKEN_POWER   // **
+
+	// Comparison
+	TOKEN_EQ  // ==
+	TOKEN_NEQ // !=
+	TOKEN_LT  // <
+	TOKEN_GT  // >
+	TOKEN_LTE // <=
+	TOKEN_GTE // >=
+
+	// Logical
+	TOKEN_AND // &&
+	TOKEN_OR  // ||
+	TOKEN_NOT // !
+
+	// Delimiters
+	TOKEN_LPAREN // (
+	TOKEN_RPAREN // )
 
 	// Keywords
 	TOKEN_TRUE  // true
@@ -39,6 +64,23 @@ var tokenNames = map[TokenType]string{
 	TOKEN_LBRACKET: "LBRACKET",
 	TOKEN_RBRACKET: "RBRACKET",
 	TOKEN_COMMA:    "COMMA",
+	TOKEN_PLUS:     "PLUS",
+	TOKEN_MINUS:    "MINUS",
+	TOKEN_STAR:     "STAR",
+	TOKEN_SLASH:    "SLASH",
+	TOKEN_PERCENT:  "PERCENT",
+	TOKEN_POWER:    "POWER",
+	TOKEN_EQ:       "EQ",
+	TOKEN_NEQ:      "NEQ",
+	TOKEN_LT:       "LT",
+	TOKEN_GT:       "GT",
+	TOKEN_LTE:      "LTE",
+	TOKEN_GTE:      "GTE",
+	TOKEN_AND:      "AND",
+	TOKEN_OR:       "OR",
+	TOKEN_NOT:      "NOT",
+	TOKEN_LPAREN:   "LPAREN",
+	TOKEN_RPAREN:   "RPAREN",
 	TOKEN_TRUE:     "TRUE",
 	TOKEN_FALSE:    "FALSE",
 }

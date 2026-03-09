@@ -102,6 +102,33 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		return callSloprt("NewSlopValue", g.lowerRawValue(e))
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
+	case *parser.BinaryExpr:
+		opFunc := map[string]string{
+			"+": "Add", "-": "Sub", "*": "Mul", "/": "Div", "%": "Mod", "**": "Pow",
+			"==": "Eq", "!=": "Neq", "<": "Lt", ">": "Gt", "<=": "Lte", ">=": "Gte",
+			"&&": "And", "||": "Or",
+		}
+		fname, ok := opFunc[e.Op]
+		if !ok {
+			return ast.NewIdent("nil")
+		}
+		return callSloprt(fname, g.lowerExpr(e.Left), g.lowerExpr(e.Right))
+	case *parser.UnaryExpr:
+		if e.Op == "-" {
+			return callSloprt("Negate", g.lowerExpr(e.Operand))
+		}
+		return callSloprt("Not", g.lowerExpr(e.Operand))
+	case *parser.CallExpr:
+		builtins := map[string]string{"str": "Str"}
+		fname, ok := builtins[e.Name]
+		if !ok {
+			return ast.NewIdent("nil")
+		}
+		args := make([]ast.Expr, len(e.Args))
+		for i, arg := range e.Args {
+			args[i] = g.lowerExpr(arg)
+		}
+		return callSloprt(fname, args...)
 	default:
 		return ast.NewIdent("nil")
 	}
@@ -127,6 +154,12 @@ func (g *Generator) lowerRawValue(expr parser.Expr) ast.Expr {
 		return callSloprt("NewSlopValue", args...)
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
+	case *parser.BinaryExpr:
+		return g.lowerExpr(e)
+	case *parser.UnaryExpr:
+		return g.lowerExpr(e)
+	case *parser.CallExpr:
+		return g.lowerExpr(e)
 	default:
 		return ast.NewIdent("nil")
 	}

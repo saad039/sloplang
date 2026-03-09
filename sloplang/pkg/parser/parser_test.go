@@ -211,3 +211,224 @@ func TestParser_Error(t *testing.T) {
 		t.Fatal("expected parse errors, got none")
 	}
 }
+
+func TestParser_BinaryAdd(t *testing.T) {
+	prog, errs := parse(`x = [1] + [2]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	bin, ok := assign.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr, got %T", assign.Value)
+	}
+	if bin.Op != "+" {
+		t.Fatalf("expected op '+', got %q", bin.Op)
+	}
+}
+
+func TestParser_Precedence_MulBeforeAdd(t *testing.T) {
+	prog, errs := parse(`x = [1] + [2] * [3]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	add := assign.Value.(*BinaryExpr)
+	if add.Op != "+" {
+		t.Fatalf("expected outer op '+', got %q", add.Op)
+	}
+	mul, ok := add.Right.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected right to be BinaryExpr, got %T", add.Right)
+	}
+	if mul.Op != "*" {
+		t.Fatalf("expected inner op '*', got %q", mul.Op)
+	}
+}
+
+func TestParser_UnaryNegate(t *testing.T) {
+	prog, errs := parse(`x = -[1]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	unary, ok := assign.Value.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", assign.Value)
+	}
+	if unary.Op != "-" {
+		t.Fatalf("expected op '-', got %q", unary.Op)
+	}
+}
+
+func TestParser_UnaryNot(t *testing.T) {
+	prog, errs := parse(`x = ![1]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	unary, ok := assign.Value.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected UnaryExpr, got %T", assign.Value)
+	}
+	if unary.Op != "!" {
+		t.Fatalf("expected op '!', got %q", unary.Op)
+	}
+}
+
+func TestParser_CallExpr(t *testing.T) {
+	prog, errs := parse(`|> str(x)`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	sw := prog.Statements[0].(*StdoutWriteStmt)
+	call, ok := sw.Value.(*CallExpr)
+	if !ok {
+		t.Fatalf("expected CallExpr, got %T", sw.Value)
+	}
+	if call.Name != "str" {
+		t.Fatalf("expected name 'str', got %q", call.Name)
+	}
+	if len(call.Args) != 1 {
+		t.Fatalf("expected 1 arg, got %d", len(call.Args))
+	}
+}
+
+func TestParser_CallExprInAssign(t *testing.T) {
+	prog, errs := parse(`x = str([1] + [2])`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	call, ok := assign.Value.(*CallExpr)
+	if !ok {
+		t.Fatalf("expected CallExpr, got %T", assign.Value)
+	}
+	bin, ok := call.Args[0].(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr arg, got %T", call.Args[0])
+	}
+	if bin.Op != "+" {
+		t.Fatalf("expected op '+', got %q", bin.Op)
+	}
+}
+
+func TestParser_ParenGrouping(t *testing.T) {
+	prog, errs := parse(`x = ([1] + [2]) * [3]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	mul := assign.Value.(*BinaryExpr)
+	if mul.Op != "*" {
+		t.Fatalf("expected outer op '*', got %q", mul.Op)
+	}
+	add, ok := mul.Left.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected left to be BinaryExpr, got %T", mul.Left)
+	}
+	if add.Op != "+" {
+		t.Fatalf("expected inner op '+', got %q", add.Op)
+	}
+}
+
+func TestParser_ComparisonOps(t *testing.T) {
+	ops := []struct{ input, op string }{
+		{`x = [1] == [2]`, "=="}, {`x = [1] != [2]`, "!="},
+		{`x = [1] < [2]`, "<"}, {`x = [1] > [2]`, ">"},
+		{`x = [1] <= [2]`, "<="}, {`x = [1] >= [2]`, ">="},
+	}
+	for _, tc := range ops {
+		prog, errs := parse(tc.input)
+		if len(errs) > 0 {
+			t.Fatalf("input %q: unexpected errors: %v", tc.input, errs)
+		}
+		assign := prog.Statements[0].(*AssignStmt)
+		bin := assign.Value.(*BinaryExpr)
+		if bin.Op != tc.op {
+			t.Fatalf("input %q: expected op %q, got %q", tc.input, tc.op, bin.Op)
+		}
+	}
+}
+
+func TestParser_LogicalOps(t *testing.T) {
+	ops := []struct{ input, op string }{
+		{`x = [1] && [2]`, "&&"}, {`x = [1] || [2]`, "||"},
+	}
+	for _, tc := range ops {
+		prog, errs := parse(tc.input)
+		if len(errs) > 0 {
+			t.Fatalf("input %q: unexpected errors: %v", tc.input, errs)
+		}
+		assign := prog.Statements[0].(*AssignStmt)
+		bin := assign.Value.(*BinaryExpr)
+		if bin.Op != tc.op {
+			t.Fatalf("input %q: expected op %q, got %q", tc.input, tc.op, bin.Op)
+		}
+	}
+}
+
+func TestParser_LogicalPrecedence(t *testing.T) {
+	prog, errs := parse(`x = [1] || [2] && [3]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	or := assign.Value.(*BinaryExpr)
+	if or.Op != "||" {
+		t.Fatalf("expected outer op '||', got %q", or.Op)
+	}
+	and, ok := or.Right.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected right to be BinaryExpr, got %T", or.Right)
+	}
+	if and.Op != "&&" {
+		t.Fatalf("expected inner op '&&', got %q", and.Op)
+	}
+}
+
+func TestParser_DoubleUnaryNegate(t *testing.T) {
+	prog, errs := parse(`x = --[5]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	outer := assign.Value.(*UnaryExpr)
+	if outer.Op != "-" {
+		t.Fatalf("expected op '-', got %q", outer.Op)
+	}
+	inner, ok := outer.Operand.(*UnaryExpr)
+	if !ok {
+		t.Fatalf("expected inner UnaryExpr, got %T", outer.Operand)
+	}
+	if inner.Op != "-" {
+		t.Fatalf("expected inner op '-', got %q", inner.Op)
+	}
+}
+
+func TestParser_PowerOp(t *testing.T) {
+	prog, errs := parse(`x = [2] ** [3]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	bin := assign.Value.(*BinaryExpr)
+	if bin.Op != "**" {
+		t.Fatalf("expected op '**', got %q", bin.Op)
+	}
+}
+
+func TestParser_StdoutWriteExpr(t *testing.T) {
+	prog, errs := parse(`|> [1] + [2]`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	sw := prog.Statements[0].(*StdoutWriteStmt)
+	bin, ok := sw.Value.(*BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr, got %T", sw.Value)
+	}
+	if bin.Op != "+" {
+		t.Fatalf("expected op '+', got %q", bin.Op)
+	}
+}
