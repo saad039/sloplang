@@ -288,29 +288,35 @@ func compareElems(a, b any) int {
 }
 
 func Eq(a, b *SlopValue) *SlopValue {
-	checkSingleElement(a, b, "==")
-	_, aIsNull := a.Elements[0].(SlopNull)
-	_, bIsNull := b.Elements[0].(SlopNull)
-	if aIsNull && bIsNull {
-		return NewSlopValue(int64(1))
-	}
-	if aIsNull || bIsNull {
-		return &SlopValue{}
-	}
-	return boolResult(compareElems(a.Elements[0], b.Elements[0]) == 0)
+	return boolResult(slopValueDeepEqual(a, b))
 }
 
 func Neq(a, b *SlopValue) *SlopValue {
-	checkSingleElement(a, b, "!=")
-	_, aIsNull := a.Elements[0].(SlopNull)
-	_, bIsNull := b.Elements[0].(SlopNull)
-	if aIsNull && bIsNull {
-		return &SlopValue{}
+	return boolResult(!slopValueDeepEqual(a, b))
+}
+
+// slopValueDeepEqual compares two SlopValues structurally.
+// For hashmaps, both keys and values must be identical (same order).
+func slopValueDeepEqual(a, b *SlopValue) bool {
+	if len(a.Elements) != len(b.Elements) {
+		return false
 	}
-	if aIsNull || bIsNull {
-		return NewSlopValue(int64(1))
+	// Compare keys for hashmaps
+	if len(a.Keys) != len(b.Keys) {
+		return false
 	}
-	return boolResult(compareElems(a.Elements[0], b.Elements[0]) != 0)
+	for i := range a.Keys {
+		if a.Keys[i] != b.Keys[i] {
+			return false
+		}
+	}
+	// Compare elements
+	for i := range a.Elements {
+		if !deepEqual(a.Elements[i], b.Elements[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func checkNullComparison(a, b *SlopValue) {
@@ -455,7 +461,11 @@ func IndexSet(sv *SlopValue, idx *SlopValue, val *SlopValue) *SlopValue {
 	if i < 0 || int(i) >= len(sv.Elements) {
 		panic(fmt.Sprintf("sloplang: index out of bounds: %d (length %d)", i, len(sv.Elements)))
 	}
-	sv.Elements[i] = val
+	if len(val.Elements) == 1 {
+		sv.Elements[i] = val.Elements[0]
+	} else {
+		sv.Elements[i] = val
+	}
 	return sv
 }
 
@@ -617,15 +627,21 @@ func IndexKeyStr(sv *SlopValue, key string) *SlopValue {
 // IndexKeySetStr sets or adds a key-value pair in a hashmap. Mutates sv. Returns sv.
 // If key exists, updates the corresponding element. If not, appends key and element.
 func IndexKeySetStr(sv *SlopValue, key string, val *SlopValue) *SlopValue {
+	var elem any
+	if len(val.Elements) == 1 {
+		elem = val.Elements[0]
+	} else {
+		elem = val
+	}
 	for i, k := range sv.Keys {
 		if k == key {
-			sv.Elements[i] = val
+			sv.Elements[i] = elem
 			return sv
 		}
 	}
 	// Key not found — append
 	sv.Keys = append(sv.Keys, key)
-	sv.Elements = append(sv.Elements, val)
+	sv.Elements = append(sv.Elements, elem)
 	return sv
 }
 

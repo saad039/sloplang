@@ -24,8 +24,8 @@ result, err = safe_div([10], [2])
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "5\n0" {
-		t.Fatalf("expected %q, got %q", "5\n0", got)
+	if got != "[5][0]" {
+		t.Fatalf("expected %q, got %q", "[5][0]", got)
 	}
 }
 
@@ -43,8 +43,8 @@ result, err = safe_div([10], [0])
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1" {
-		t.Fatalf("expected %q, got %q", "[]\n1", got)
+	if got != "[][1]" {
+		t.Fatalf("expected %q, got %q", "[][1]", got)
 	}
 }
 
@@ -71,7 +71,7 @@ data, err3 = <. "nonexistent.txt"
 `
 	got := runE2E(t, src)
 	// FormatValue: single-element returns raw value (5, not [5])
-	expected := "5\n0\n[]\n1\n1"
+	expected := "[5][0][][1][1]"
 	if got != expected {
 		t.Fatalf("expected %q, got %q", expected, got)
 	}
@@ -93,8 +93,8 @@ content, err = read_config("nonexistent_xyz.txt")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "1" {
-		t.Fatalf("expected %q, got %q", "1", got)
+	if got != "[1]" {
+		t.Fatalf("expected %q, got %q", "[1]", got)
 	}
 }
 
@@ -114,8 +114,8 @@ content, err = read_config("test_config.txt")
 |> content
 `
 	got := runE2E(t, src)
-	if got != "0\nhello_config" {
-		t.Fatalf("expected %q, got %q", "0\nhello_config", got)
+	if got != "[0]hello_config" {
+		t.Fatalf("expected %q, got %q", "[0]hello_config", got)
 	}
 }
 
@@ -134,8 +134,8 @@ result, err = parse_int("abc")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1" {
-		t.Fatalf("expected %q, got %q", "[]\n1", got)
+	if got != "[][1]" {
+		t.Fatalf("expected %q, got %q", "[][1]", got)
 	}
 }
 
@@ -154,8 +154,8 @@ result, err = parse_int("42")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "42\n0" {
-		t.Fatalf("expected %q, got %q", "42\n0", got)
+	if got != "[42][0]" {
+		t.Fatalf("expected %q, got %q", "[42][0]", got)
 	}
 }
 
@@ -181,8 +181,8 @@ r, e = outer([0])
 |> str(e)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1" {
-		t.Fatalf("expected %q, got %q", "[]\n1", got)
+	if got != "[][1]" {
+		t.Fatalf("expected %q, got %q", "[][1]", got)
 	}
 }
 
@@ -218,8 +218,8 @@ r, e = step3([0])
 |> str(e)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1" {
-		t.Fatalf("expected %q, got %q", "[]\n1", got)
+	if got != "[][1]" {
+		t.Fatalf("expected %q, got %q", "[][1]", got)
 	}
 }
 
@@ -254,8 +254,8 @@ r, e = step3([5])
 `
 	got := runE2E(t, src)
 	// step1([5]) -> [5, [0]], step2: 5*2=10 -> [10, [0]], step3: 10+100=110
-	if got != "110\n0" {
-		t.Fatalf("expected %q, got %q", "110\n0", got)
+	if got != "[110][0]" {
+		t.Fatalf("expected %q, got %q", "[110][0]", got)
 	}
 }
 
@@ -290,8 +290,8 @@ r3, e3 = outer([5])
 `
 	got := runE2E(t, src)
 	// Error code 2 for negative, 3 for zero, 0 for positive
-	if got != "2\n3\n0" {
-		t.Fatalf("expected %q, got %q", "2\n3\n0", got)
+	if got != "[2][3][0]" {
+		t.Fatalf("expected %q, got %q", "[2][3][0]", got)
 	}
 }
 
@@ -314,8 +314,8 @@ r2, e2 = safe_div([10], [0])
 |> str(e2)
 `
 	got := runE2E(t, src)
-	if got != "2\n0\n[]\n1" {
-		t.Fatalf("expected %q, got %q", "2\n0\n[]\n1", got)
+	if got != "[2][0][][1]" {
+		t.Fatalf("expected %q, got %q", "[2][0][][1]", got)
 	}
 }
 
@@ -336,8 +336,8 @@ r2, e2 = safe_div([10], [5])
 |> str(e2)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1\n2\n0" {
-		t.Fatalf("expected %q, got %q", "[]\n1\n2\n0", got)
+	if got != "[][1][2][0]" {
+		t.Fatalf("expected %q, got %q", "[][1][2][0]", got)
 	}
 }
 
@@ -360,8 +360,8 @@ r4, e4 = safe_div([12], [0])
 |> str(r4)
 `
 	got := runE2E(t, src)
-	if got != "4\n[]\n3\n[]" {
-		t.Fatalf("expected %q, got %q", "4\n[]\n3\n[]", got)
+	if got != "[4][][3][]" {
+		t.Fatalf("expected %q, got %q", "[4][][3][]", got)
 	}
 }
 
@@ -373,8 +373,8 @@ data, err = <. "does_not_exist_12345.txt"
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "1" {
-		t.Fatalf("expected %q, got %q", "1", got)
+	if got != "[1]" {
+		t.Fatalf("expected %q, got %q", "[1]", got)
 	}
 }
 
@@ -386,8 +386,8 @@ data, err = <. "roundtrip.txt"
 |> data
 `
 	got := runE2E(t, src)
-	if got != "0\nhello roundtrip" {
-		t.Fatalf("expected %q, got %q", "0\nhello roundtrip", got)
+	if got != "[0]hello roundtrip" {
+		t.Fatalf("expected %q, got %q", "[0]hello roundtrip", got)
 	}
 }
 
@@ -400,8 +400,8 @@ data, err = <. "nope_nope_nope.txt"
 	// Empty string "" has length 1 (single string element)
 	// Actually: FileRead returns NewSlopValue("") which is a SlopValue with one element ("")
 	// #data = [1]
-	if got != "1" {
-		t.Fatalf("expected %q, got %q", "1", got)
+	if got != "[1]" {
+		t.Fatalf("expected %q, got %q", "[1]", got)
 	}
 }
 
@@ -414,8 +414,8 @@ val, err = to_num("123")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "123\n0" {
-		t.Fatalf("expected %q, got %q", "123\n0", got)
+	if got != "[123][0]" {
+		t.Fatalf("expected %q, got %q", "[123][0]", got)
 	}
 }
 
@@ -426,8 +426,8 @@ val, err = to_num("3.14")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "3.14\n0" {
-		t.Fatalf("expected %q, got %q", "3.14\n0", got)
+	if got != "[3.14][0]" {
+		t.Fatalf("expected %q, got %q", "[3.14][0]", got)
 	}
 }
 
@@ -438,8 +438,8 @@ val, err = to_num("not_a_number")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1" {
-		t.Fatalf("expected %q, got %q", "[]\n1", got)
+	if got != "[][1]" {
+		t.Fatalf("expected %q, got %q", "[][1]", got)
 	}
 }
 
@@ -450,8 +450,8 @@ val, err = to_num("")
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "[]\n1" {
-		t.Fatalf("expected %q, got %q", "[]\n1", got)
+	if got != "[][1]" {
+		t.Fatalf("expected %q, got %q", "[][1]", got)
 	}
 }
 
@@ -470,8 +470,8 @@ result, err = safe_div([42], [0])
 |> str(err)
 `
 	got := runE2E(t, src)
-	if got != "1" {
-		t.Fatalf("expected %q, got %q", "1", got)
+	if got != "[1]" {
+		t.Fatalf("expected %q, got %q", "[1]", got)
 	}
 }
 
@@ -562,8 +562,8 @@ if err == [0] {
 }
 `
 	got := runE2E(t, src)
-	if got != "success\n5" {
-		t.Fatalf("expected %q, got %q", "success\n5", got)
+	if got != "success[5]" {
+		t.Fatalf("expected %q, got %q", "success[5]", got)
 	}
 }
 
@@ -587,8 +587,8 @@ for d in divisors {
 |> str(failures)
 `
 	got := runE2E(t, src)
-	if got != "2" {
-		t.Fatalf("expected %q, got %q", "2", got)
+	if got != "[2]" {
+		t.Fatalf("expected %q, got %q", "[2]", got)
 	}
 }
 
@@ -620,8 +620,8 @@ out, err = process_all()
 |> str(out)
 `
 	got := runE2E(t, src)
-	if got != "error encountered\n1\n[6, 10]" {
-		t.Fatalf("expected %q, got %q", "error encountered\n1\n[6, 10]", got)
+	if got != "error encountered[1][6, 10]" {
+		t.Fatalf("expected %q, got %q", "error encountered[1][6, 10]", got)
 	}
 }
 
@@ -640,5 +640,6 @@ func TestE2E_Phase7_PanicLengthMismatchArithmetic(t *testing.T) {
 }
 
 func TestE2E_Phase7_PanicMultiElementComparison(t *testing.T) {
-	runE2EExpectPanic(t, `x = [1, 2] == [1, 2]`)
+	// Multi-element comparison no longer panics — it succeeds
+	_ = runE2E(t, `x = [1, 2] == [1, 2]`)
 }

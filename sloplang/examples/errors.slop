@@ -1,0 +1,137 @@
+// === Sloplang: Error Handling ===
+// Go-style dual return: (result, errcode)
+// errcode [0] = success, nonzero = failure
+
+// --- Dual return from user functions ---
+
+fn safe_divide(a, b) {
+    if b == [0] {
+        <- [[], [1]]
+    }
+    <- [a / b, [0]]
+}
+
+val, err = safe_divide([10], [2])
+if err == [0] {
+    |> str(val)                     // output: [5]
+    |> "\n"
+}
+
+val2, err2 = safe_divide([10], [0])
+if err2 != [0] {
+    |> "division by zero\n"         // output: division by zero
+}
+
+// --- Multiple error codes ---
+
+fn validate(x) {
+    if x < [0] {
+        <- [[], [2]]               // error code 2: negative
+    }
+    if x == [0] {
+        <- [[], [3]]               // error code 3: zero
+    }
+    <- [x, [0]]
+}
+
+r1, e1 = validate([5])
+|> str(r1)                          // output: [5]
+|> "\n"
+|> str(e1)                          // output: [0]
+|> "\n"
+
+r2, e2 = validate(-[1])
+|> str(e2)                          // output: [2]
+|> "\n"
+
+r3, e3 = validate([0])
+|> str(e3)                          // output: [3]
+|> "\n"
+
+// --- Error propagation across functions ---
+
+fn double_safe(x) {
+    v, e = validate(x)
+    if e != [0] {
+        <- [[], e]                  // propagate error unchanged
+    }
+    <- [v * [2], [0]]
+}
+
+ok, oe = double_safe([3])
+|> str(ok)                          // output: [6]
+|> "\n"
+|> str(oe)                          // output: [0]
+|> "\n"
+
+bad, be = double_safe(-[1])
+|> str(be)                          // output: [2]  (error preserved)
+|> "\n"
+
+// --- Chained propagation (3+ levels) ---
+
+fn triple_safe(x) {
+    v, e = double_safe(x)
+    if e != [0] {
+        <- [[], e]
+    }
+    <- [v + x, [0]]
+}
+
+tv, te = triple_safe([4])
+|> str(tv)                          // output: [12]  (4*2 + 4)
+|> "\n"
+|> str(te)                          // output: [0]
+|> "\n"
+
+tv2, te2 = triple_safe([0])
+|> str(te2)                         // output: [3]
+|> "\n"
+
+// --- Dual return from builtins ---
+
+num, nerr = to_num("42")
+if nerr == [0] {
+    |> str(num)                     // output: [42]
+    |> "\n"
+}
+
+bnum, bnerr = to_num("abc")
+if bnerr != [0] {
+    |> "not a number\n"             // output: not a number
+}
+
+// File read returns (data, errcode)
+.> "test.txt" "hello"
+fdata, ferr = <. "test.txt"
+if ferr == [0] {
+    |> fdata                        // output: hello
+    |> "\n"
+}
+
+nodata, noerr = <. "missing.txt"
+if noerr != [0] {
+    |> "file missing\n"             // output: file missing
+}
+
+// --- Error-driven control flow ---
+
+fn process_numbers(inputs) {
+    sum = [0]
+    failures = [0]
+    for s in inputs {
+        v, e = to_num(s)
+        if e == [0] {
+            sum = sum + v
+        } else {
+            failures = failures + [1]
+        }
+    }
+    <- [sum, failures]
+}
+
+total, fails = process_numbers(["10", "abc", "20", "xyz", "30"])
+|> str(total)                       // output: [60]
+|> "\n"
+|> str(fails)                       // output: [2]
+|> "\n"

@@ -1,2 +1,49 @@
+// === Sloplang: Hello World & Basics ===
+// |> prints without a trailing newline. Use "\n" for line breaks.
+
+// Assignment — every value is an array
 x = [1, 2, 3]
-|> "hello world"
+
+// Stdout write (|>)
+|> "hello world\n"                  // output: hello world
+
+// str() converts any value to its string representation
+// Non-string values always show bracket notation
+|> str(x)                           // output: [1, 2, 3]
+|> "\n"
+
+// Single-element arrays show with brackets
+y = [42]
+|> str(y)                           // output: [42]
+|> "\n"
+
+// Empty array
+empty = []
+|> str(empty)                       // output: []
+|> "\n"
+
+// Strings are the only non-bracket literal
+name = "hello"
+|> name                             // output: hello
+|> "\n"
+
+// String escapes
+|> "tab:\there\n"                   // output: tab:	here
+|> "line1\nline2\n"                 // output: line1 / line2
+
+// Variable reassignment
+z = [1]
+z = [2]
+z = [3]
+|> str(z)                           // output: [3]
+|> "\n"
+
+// Boolean keywords — true = [1], false = []
+a = true
+|> str(a)                           // output: [1]
+|> "\n"
+b = false
+|> str(b)                           // output: []
+|> "\n"
+
+// Comments — single-line only, started with //

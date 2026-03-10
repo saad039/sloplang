@@ -1,57 +1,153 @@
-// Index access (@)
+// === Sloplang: Array Operations ===
+
+// --- Index access (@) — literal numeric index ---
+
 arr = [10, 20, 30, 40, 50]
-|> str(arr@0)
-|> str(arr@4)
+|> str(arr@0)                       // output: [10]
+|> "\n"
+|> str(arr@4)                       // output: [50]
+|> "\n"
 
-// Index with variable ($)
+// --- Dynamic index ($) — variable dispatches by type ---
+
 i = [2]
-|> str(arr$i)
+|> str(arr$i)                       // output: [30]
+|> "\n"
 
-// Length (#)
-|> str(#arr)
+// --- Index set (@) — mutates in place ---
 
-// Push (<<)
-arr << [60]
-|> str(arr)
-|> str(#arr)
-
-// Pop (>>)
-last = >>arr
-|> str(last)
-|> str(arr)
-
-// Remove at index (~@)
-removed = arr ~@ [1]
-|> str(removed)
-|> str(arr)
-
-// Slice (::)
-sub = arr::1::3
-|> str(sub)
-
-// Concat (++)
-combined = [1, 2] ++ [3, 4]
-|> str(combined)
-
-// Remove value (--)
-without = [1, 2, 3, 2, 4] -- [2]
-|> str(without)
-
-// Unique (~)
-uniq = ~[1, 2, 2, 3, 1, 3]
-|> str(uniq)
-
-// Contains (??)
-|> str([10, 20, 30] ?? [20])
-|> str([10, 20, 30] ?? [99])
-
-// Index set
 data = [100, 200, 300]
 data@1 = [999]
-|> str(data)
+|> str(data)                        // output: [100, 999, 300]
+|> "\n"
 
-// Chained operations
-nums = [5, 3, 1, 4, 2]
-nums << [6]
-top = nums::0::3
-|> str(top)
+// Dynamic index set ($)
+idx = [0]
+data$idx = [777]
+|> str(data)                        // output: [777, 999, 300]
+|> "\n"
+
+// --- Nested array access ---
+
+matrix = [[1, 2], [3, 4]]
+|> str(matrix@0)                    // output: [1, 2]
+|> "\n"
+|> str(matrix@1)                    // output: [3, 4]
+|> "\n"
+
+// --- Length (#) — prefix operator ---
+
+|> str(#arr)                        // output: [5]
+|> "\n"
+|> str(#[])                         // output: [0]
+|> "\n"
+|> str(#[1, 2, 3])                  // output: [3]
+|> "\n"
+
+// Length in expression
+if #arr == [5] {
+    |> "length is 5\n"              // output: length is 5
+}
+
+// --- Push (<<) — appends element, mutates array ---
+
+nums = [1, 2, 3]
+nums << [4]
+|> str(nums)                        // output: [1, 2, 3, 4]
+|> "\n"
+|> str(#nums)                       // output: [4]
+|> "\n"
+
+// Push to empty
+empty = []
+empty << [42]
+|> str(empty)                       // output: [42]
+|> "\n"
+
+// Multiple pushes
+empty << [43]
+|> str(empty)                       // output: [42, 43]
+|> "\n"
+
+// --- Pop (>>) — prefix, removes + returns last element ---
+
+stack = [10, 20, 30]
+last = >>stack
+|> str(last)                        // output: [30]
+|> "\n"
+|> str(stack)                       // output: [10, 20]
+|> "\n"
+
+// --- Remove at index (~@) — removes + returns element ---
+
+items = [10, 20, 30, 40]
+removed = items ~@ [1]
+|> str(removed)                     // output: [20]
+|> "\n"
+|> str(items)                       // output: [10, 30, 40]
+|> "\n"
+
+// --- Slice (::) — sub-array [lo:hi), non-mutating ---
+
+big = [10, 20, 30, 40, 50]
+|> str(big::1::3)                   // output: [20, 30]
+|> "\n"
+|> str(big::0::2)                   // output: [10, 20]
+|> "\n"
+|> str(big::2::2)                   // output: []
+|> "\n"
+
+// --- Concat (++) — non-mutating, returns new array ---
+
+combined = [1, 2] ++ [3, 4]
+|> str(combined)                    // output: [1, 2, 3, 4]
+|> "\n"
+
+// Concat with empty
+|> str([] ++ [1])                   // output: [1]
+|> "\n"
+
+// Concat strings
+|> str(["a"] ++ ["b"])             // output: [a, b]
+|> "\n"
+
+// --- Remove value (--) — removes first occurrence, non-mutating ---
+
+|> str([1, 2, 3, 2, 4] -- [2])    // output: [1, 3, 2, 4]
+|> "\n"
+
+// --- Unique (~) — prefix, deduplicates, non-mutating ---
+
+|> str(~[1, 2, 2, 3, 1, 3])       // output: [1, 2, 3]
+|> "\n"
+|> str(~[])                         // output: []
+|> "\n"
+
+// --- Contains (??) — returns [1] or [] ---
+
+|> str([10, 20, 30] ?? [20])       // output: [1]
+|> "\n"
+|> str([10, 20, 30] ?? [99])       // output: []
+|> "\n"
+
+// Contains in conditional
+if [10, 20, 30] ?? [20] {
+    |> "found 20\n"                 // output: found 20
+}
+
+// --- Chained operations ---
+
+chain = [5, 3, 1, 4, 2]
+chain << [6]
+top = chain::0::3
+|> str(top)                         // output: [5, 3, 1]
+|> "\n"
+
+// Unique after concat
+all = [1, 2, 3] ++ [2, 3, 4]
+|> str(~all)                        // output: [1, 2, 3, 4]
+|> "\n"
+
+// Length of concat
+|> str(#([1, 2] ++ [3]))          // output: [3]
+|> "\n"

@@ -52,7 +52,8 @@ type SlopValue struct {
 
 - Strict booleans: only `[1]` is truthy, only `[]` is falsy; `[0]`, multi-element arrays, strings, and `SlopNull` all panic on truthiness check
 - `NewSlopValue(elems ...any)` constructs values
-- `FormatValue` renders: single-element → raw value (e.g. `7`), multi-element → `[1, 2, 3]`, `SlopNull` → `null`
+- `FormatValue` renders: single-element string → raw string (e.g. `hello`), everything else → bracket notation (e.g. `[42]`, `[1, 2, 3]`, `[null]`, `[]`)
+- `StdoutWrite` uses `fmt.Print` (no trailing newline) — explicit `"\n"` required in slop source
 - `SlopNull struct{}` — sentinel type for null values. Panics on arithmetic, truthiness, ordered comparisons, iteration. Supports `==`/`!=` and formatting.
 
 ### Token (`pkg/lexer/token.go`)
@@ -66,7 +67,7 @@ type Token struct {
 }
 ```
 
-Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithmetic, comparison, logical, array), I/O (`<|`, `<.`, `.>`, `.>>`), delimiters, keywords (`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`, `null`), and return (`<-`).
+Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithmetic, comparison, logical, array), I/O (`<|`, `<.`, `.>`, `.>>`), delimiters, keywords (`fn`, `if`, `else`, `for`, `in`, `break`, `true`, `false`, `null`), and return (`<-`). `true` and `false` are reserved keywords that parse as `ArrayLiteral` producing `[1]` and `[]` respectively.
 
 ### AST Nodes (`pkg/parser/ast.go`)
 
@@ -132,7 +133,7 @@ Two postfix operators for access:
 - `map@name` (bare identifier) → `KeyAccessExpr` (literal string key)
 - `arr@0` (number literal) → `IndexExpr` (numeric index)
 
-Bare numbers, booleans, and null are rejected outside `[]` brackets. The parser tracks `arrayDepth` — these tokens are only allowed inside array literals.
+Bare numbers and null are rejected outside `[]` brackets. The parser tracks `arrayDepth` — these tokens are only allowed inside array literals. `true` and `false` are standalone keywords that parse as `ArrayLiteral` producing `[1]` and `[]` respectively — they do NOT require brackets. `[true]` creates `[[1]]` (nested).
 
 ## Codegen (`pkg/codegen/codegen.go`)
 
@@ -174,7 +175,7 @@ All operations are functions that take/return `*SlopValue`:
 `Add`, `Sub`, `Mul`, `Div`, `Mod`, `Pow`, `Negate`
 
 ### Comparison (single-element only)
-`Eq`, `Neq`, `Lt`, `Gt`, `Lte`, `Gte` — return `[1]` (truthy) or `[]` (falsy)
+`Eq`, `Neq` — deep structural equality on any-size arrays and hashmaps (compares lengths, keys, and elements recursively); `Lt`, `Gt`, `Lte`, `Gte` — single-element only. All return `[1]` (truthy) or `[]` (falsy)
 
 ### Logical
 `And`, `Or`, `Not` — operate on truthiness
@@ -227,6 +228,32 @@ All operations are functions that take/return `*SlopValue`:
 - `UnpackTwo(sv)` — destructures for multi-assign
 - `deepEqual(a, b)` — structural equality for Contains/Remove/Unique
 
+## Testing (`pkg/codegen/*_e2e_test.go`)
+
+### E2E Test Harness
+
+- `runE2E(t, source)` — transpiles `.slop` source → compiles Go → runs binary → returns stdout
+- `runE2EExpectPanic(t, source)` — asserts non-zero exit code (runtime panic)
+- `runE2EWithStdin(t, source, stdin)` — provides stdin via pipe
+
+### Semantic E2E Test Suite (Phase 7.5)
+
+355 tests across 9 domain files, each testing a specific semantic rule through the full pipeline:
+
+| File | Domain | Tests |
+|------|--------|-------|
+| `semantic_mutation_e2e_test.go` | IndexSet, DynAccessSet, KeySetStr, Push, Pop, RemoveAt | 50 |
+| `semantic_equality_e2e_test.go` | Deep equality, cross-type, null, hashmap, ordered comparisons | 45 |
+| `semantic_format_e2e_test.go` | str(), \|> no newline, FormatValue after ops, hashmaps | 32 |
+| `semantic_boolean_e2e_test.go` | IsTruthy strictness, logical ops, true/false keywords | 41 |
+| `semantic_null_e2e_test.go` | Null succeeds/panics in every operator context | 36 |
+| `semantic_arithmetic_e2e_test.go` | Type safety, element-wise, div-by-zero, negate, precedence | 42 |
+| `semantic_array_ops_e2e_test.go` | Index, slice, concat, remove, contains, unique, length | 49 |
+| `semantic_hashmap_e2e_test.go` | Declaration, key access/set, ##/@@, dynamic access, functions | 28 |
+| `semantic_control_flow_e2e_test.go` | If/else, for-in, infinite loop, functions, scoping, combined | 32 |
+
+Test naming convention: `TestSem_<Domain>_<Case>` (e.g., `TestSem_Mut_IndexSet_SingleInt`).
+
 ## Implemented Phases
 
 | Phase | Description | Status |
@@ -238,4 +265,5 @@ All operations are functions that take/return `*SlopValue`:
 | 5 | Hashmaps | Done |
 | 6 | I/O (stdin + file) | Done |
 | 7 | Error Handling Patterns | Done |
+| 7.5 | Syntax Strictness Refactor + Semantic E2E Tests (355 tests) | Done |
 | 8 | Real Programs | Planned |

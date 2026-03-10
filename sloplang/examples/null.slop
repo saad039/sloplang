@@ -1,32 +1,77 @@
-// Forward declaration with null
+// === Sloplang: Null Value ===
+// null is strict — must always be inside brackets: [null]
+
+// --- Basic null ---
+
 x = [null]
-|> str(x)
+|> str(x)                           // output: [null]
+|> "\n"
 
-// Reassign from null
+// --- Reassign from null (forward declaration pattern) ---
+
 x = [42]
-|> str(x)
+|> str(x)                           // output: [42]
+|> "\n"
 
-// Null in arrays
+// --- Null in arrays ---
+
 arr = [null, null, null]
-|> str(arr)
+|> str(arr)                         // output: [null, null, null]
+|> "\n"
 
-// Null equality
+mixed = [1, null, "hi"]
+|> str(mixed)                       // output: [1, null, hi]
+|> "\n"
+
+// --- Null equality (deep) ---
+
 if [null] == [null] {
-    |> "null equals null"
+    |> "null equals null\n"         // output: null equals null
 }
 
-// Null inequality
+// --- Null inequality ---
+
 if [null] != [5] {
-    |> "null is not 5"
+    |> "null is not 5\n"            // output: null is not 5
 }
 
-// Length counts null elements
-|> str(#[null, null])
+if [1] == [null] {
+    |> "never"
+} else {
+    |> "1 is not null\n"            // output: 1 is not null
+}
 
-// Contains finds null
+// --- Length counts null elements ---
+
+|> str(#[null, null])               // output: [2]
+|> "\n"
+
+// --- Contains finds null ---
+
 if [1, null, 3] ?? [null] {
-    |> "array contains null"
+    |> "array contains null\n"      // output: array contains null
 }
 
-// str(null) returns "null"
-|> str([null])
+// --- str(null) ---
+
+|> str([null])                      // output: [null]
+|> "\n"
+
+// --- Stdout write null ---
+
+|> [null]                           // output: [null]
+|> "\n"
+
+// --- Null in hashmap value ---
+
+m{a} = [[null]]
+|> str(m@a)                         // output: [null]
+|> "\n"
+
+// --- These would PANIC (null is strict) ---
+// [null] + [1]       — panics: cannot perform arithmetic on null
+// -[null]            — panics: cannot negate null
+// ![null]            — panics: null is not a valid boolean
+// [null] > [1]       — panics: cannot compare null with ordered ops
+// if [null] { }      — panics: null is not a valid boolean
+// for x in [null] {} — panics: cannot iterate null

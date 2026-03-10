@@ -1,48 +1,131 @@
-// Hashmap declaration (multi-key)
+// === Sloplang: Hashmaps ===
+// Keys are always strings. Values can be anything.
+
+// --- Declaration (multi-key) ---
+
 person{name, age} = ["bob", [30]]
-|> person@name
-|> str(person@age)
-
-// Key set — update existing
-person@age = [31]
-|> str(person@age)
-
-// Key set — add new key
-person@email = "bob@test.com"
-|> person@email
-
-// Keys prefix (##)
-ks = ##person
-|> str(ks)
-
-// Values prefix (@@)
-vs = @@person
-|> str(vs)
-
-// Dynamic key access ($)
-which = "name"
-|> person$which
-
-// Dynamic key set
-field = "phone"
-person$field = "555-1234"
-|> person@phone
-
-// Numeric index on hashmap (ordered)
-|> person@0
+|> person@name                      // output: bob
+|> "\n"
+|> str(person@age)                  // output: [30]
+|> "\n"
 
 // Single-key hashmap
 box{item} = ["widget"]
-|> box@item
+|> box@item                         // output: widget
+|> "\n"
 
-// Empty hashmap + add keys
+// Three-key hashmap
+rgb{r, g, b} = [[255], [128], [0]]
+|> str(rgb@r)                       // output: [255]
+|> "\n"
+|> str(rgb@g)                       // output: [128]
+|> "\n"
+|> str(rgb@b)                       // output: [0]
+|> "\n"
+
+// Empty hashmap
 counts{} = []
+
+// --- Key access — literal (@) ---
+
+|> person@name                      // output: bob
+|> "\n"
+
+// --- Key set — literal (@) ---
+
+// Update existing key
+person@age = [31]
+|> str(person@age)                  // output: [31]
+|> "\n"
+
+// Add new key
+person@email = "bob@test.com"
+|> person@email                     // output: bob@test.com
+|> "\n"
+
+// --- Dynamic key access ($) ---
+
+which = "name"
+|> person$which                     // output: bob
+|> "\n"
+
+// --- Dynamic key set ($) ---
+
+field = "phone"
+person$field = "555-1234"
+|> person@phone                     // output: 555-1234
+|> "\n"
+
+// --- Numeric index on hashmap (ordered insertion) ---
+
+|> person@0                         // output: bob
+|> "\n"
+
+// --- Keys (## prefix) ---
+
+ks = ##person
+|> str(ks)                          // output: [name, age, email, phone]
+|> "\n"
+
+// Length of keys
+|> str(#(##person))                 // output: [4]
+|> "\n"
+
+// --- Values (@@ prefix) ---
+
+vs = @@person
+|> str(vs)                          // output: [bob, [31], bob@test.com, 555-1234]
+|> "\n"
+
+// --- Empty hashmap — add keys dynamically ---
+
 counts@apples = [3]
 counts@bananas = [5]
-|> str(##counts)
-|> str(@@counts)
+|> str(##counts)                    // output: [apples, bananas]
+|> "\n"
+|> str(@@counts)                    // output: [[3], [5]]
+|> "\n"
 
-// Iteration over keys
+// --- Iteration over keys ---
+
 for k in ##person {
     |> k
+    |> "\n"
 }
+// output: name / age / email / phone
+
+// --- Dynamic access in loop ---
+
+for k in ##counts {
+    |> str(counts$k)
+    |> "\n"
+}
+// output: [3] / [5]
+
+// --- Hashmap with array values ---
+
+data{nums, labels} = [[1, 2, 3], ["x", "y", "z"]]
+|> str(data@nums)                   // output: [1, 2, 3]
+|> "\n"
+|> str(data@labels)                 // output: [x, y, z]
+|> "\n"
+
+// --- Hashmap value in arithmetic ---
+
+person@age = person@age + [1]
+|> str(person@age)                  // output: [32]
+|> "\n"
+
+// --- Hashmap value in comparison ---
+
+if person@age > [18] {
+    |> "adult\n"                    // output: adult
+}
+
+// --- Deep equality on hashmaps ---
+// Both keys and values must be identical
+
+m1{x, y} = [[1], [2]]
+m2{x, y} = [[1], [2]]
+|> str(m1 == m2)                    // output: [1]
+|> "\n"

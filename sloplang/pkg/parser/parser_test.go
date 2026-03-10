@@ -173,17 +173,33 @@ func TestParser_MultipleStatements(t *testing.T) {
 	}
 }
 
-func TestParser_RejectBareTrue(t *testing.T) {
-	_, errs := parse(`x = true`)
-	if len(errs) == 0 {
-		t.Fatal("expected parse error for bare true")
+func TestParser_BareTrue(t *testing.T) {
+	prog, errs := parse(`x = true`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	arr, ok := assign.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral, got %T", assign.Value)
+	}
+	if len(arr.Elements) != 1 {
+		t.Fatalf("true should parse as [1], got %d elements", len(arr.Elements))
 	}
 }
 
-func TestParser_RejectBareFalse(t *testing.T) {
-	_, errs := parse(`x = false`)
-	if len(errs) == 0 {
-		t.Fatal("expected parse error for bare false")
+func TestParser_BareFalse(t *testing.T) {
+	prog, errs := parse(`x = false`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	assign := prog.Statements[0].(*AssignStmt)
+	arr, ok := assign.Value.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("expected ArrayLiteral, got %T", assign.Value)
+	}
+	if len(arr.Elements) != 0 {
+		t.Fatalf("false should parse as [], got %d elements", len(arr.Elements))
 	}
 }
 

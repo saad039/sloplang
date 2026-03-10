@@ -47,21 +47,20 @@ func (sv *SlopValue) IsTruthy() bool {
 	panic(fmt.Sprintf("sloplang: boolean expression must be [1] or [], got [%d]", i))
 }
 
-// StdoutWrite prints a SlopValue to stdout with a trailing newline.
+// StdoutWrite prints a SlopValue to stdout without a trailing newline.
+// Use explicit "\n" in the value for newlines.
 func StdoutWrite(v *SlopValue) {
-	if len(v.Elements) == 1 {
-		if s, ok := v.Elements[0].(string); ok {
-			fmt.Println(s)
-			return
-		}
-	}
-	fmt.Println(FormatValue(v))
+	fmt.Print(FormatValue(v))
 }
 
 // FormatValue returns the string representation of a SlopValue.
+// Single-element strings print without brackets; everything else uses bracket notation.
 func FormatValue(v *SlopValue) string {
+	// Single-element string: print raw (no brackets)
 	if len(v.Elements) == 1 {
-		return formatElement(v.Elements[0])
+		if s, ok := v.Elements[0].(string); ok {
+			return s
+		}
 	}
 	parts := make([]string, len(v.Elements))
 	for i, elem := range v.Elements {

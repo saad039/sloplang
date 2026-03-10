@@ -1,0 +1,132 @@
+[
+  {
+    "category": "e2e",
+    "description": "semantic mutation tests — IndexSet, DynAccessSet, KeySetStr, Push, Pop, RemoveAt",
+    "steps": [
+      "IndexSet single-element unwraps to raw value",
+      "IndexSet multi-element stores nested SlopValue",
+      "IndexSet with string, null, empty array, float",
+      "IndexSet boundaries (first, last, out-of-bounds panic)",
+      "IndexSet read-back, length unchanged, double set, loop, concat",
+      "DynAccessSet int key single/multi, string key single/multi",
+      "DynAccessSet float key panics, multi-element key panics",
+      "KeySetStr update existing, add new, single unwraps, multi nests",
+      "Push single/multi/empty/null/nested/string, length after push",
+      "Pop basic/single/empty-panic/return-value/roundtrip",
+      "RemoveAt middle/first/last/single/out-of-bounds-panic/return-value"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic equality tests — deep equality, cross-type, null, hashmap, ordered comparisons",
+    "steps": [
+      "Same-type scalar equality (int, float, uint, string)",
+      "Cross-type comparisons return [] without panic",
+      "Multi-element deep equality and length mismatch",
+      "Nested array equality and nested-vs-flat",
+      "Null equality (null==null, null!=int, arrays with null)",
+      "Hashmap equality (same structure, different values, different keys)",
+      "Inequality != operator",
+      "Equality results used in boolean context",
+      "After mutation (IndexSet, Push, build separately)",
+      "Ordered comparisons (lt, gt, lte, gte, string, float)",
+      "Ordered comparison panics (multi-element, null, type mismatch)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic format tests — str(), |> no newline, FormatValue after operations, hashmaps",
+    "steps": [
+      "str() output for int, float, uint, multi, empty, string, null, mixed, nested, true, false",
+      "|> concatenation without newline, explicit newline, multiple statements",
+      "FormatValue after index access, pop, removeAt, slice, concat, unique, contains, length",
+      "FormatValue with hashmap keys (single/multi), values after mutation"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic boolean tests — IsTruthy strictness, logical operators, true/false keywords",
+    "steps": [
+      "Valid booleans: [1] truthy, [] falsy, true/false keywords",
+      "Invalid booleans panic: [0], [2], [-1], string, float, multi, null, uint",
+      "Logical AND/OR/NOT with valid operands",
+      "Logical operators with invalid operands panic",
+      "true/false keyword semantics: str(), equality, bracket-nesting",
+      "Boolean results from == used in if"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic null tests — null succeeds/panics in every operator context",
+    "steps": [
+      "Null succeeds: assignment, str, stdout, equality, length, contains, index, hashmap",
+      "Null panics in arithmetic: +, -, *, /, %, **, right-side",
+      "Null panics in unary/boolean: negate, not, if, and, or",
+      "Null panics in ordered comparisons: <, >, <=, >=, right-side",
+      "Null panics in iteration (single-element)",
+      "Null edge cases: multi-null iteration, unique, remove, concat, mixed iteration"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic arithmetic tests — type safety, element-wise, division by zero, negate, precedence",
+    "steps": [
+      "Type consistency: int+int, float+float, uint+uint, cross-type panics",
+      "Length mismatch panics, empty+empty succeeds",
+      "Multi-element element-wise: add, sub, mul, div, mod, pow",
+      "Division by zero panics for int, uint, float, second element",
+      "Negate: int, multi, zero, float, double-negate, uint-to-int, empty, string-panics",
+      "Mod edge cases: basic, float-panics",
+      "Pow edge cases: zero exp, zero base, negative exp",
+      "Precedence: mul before add, parens override, negate in expression",
+      "Type mismatch across all ops: sub, mul, div, mod, pow"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic array ops tests — index, slice, concat, remove, contains, unique, length",
+    "steps": [
+      "Index access: first, last, out-of-bounds panic, dynamic, nested, after push, string",
+      "Slice: basic, empty range, full, last element, does not mutate, out-of-bounds panic, hi<lo panic",
+      "Concat: basic, left/right/both empty, does not mutate, strings, mixed, nested",
+      "Remove: first occurrence, not found, empty val, does not mutate, remove null",
+      "Contains: found, not found, empty array, null found, multi-operand panic, in conditional",
+      "Unique: basic, empty, single, all same, does not mutate, null dedup, mixed types, strings",
+      "Length: basic, empty, null, nested, after push, in expression"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic hashmap tests — declaration, key access/set, ##/@@, dynamic access, iteration, functions, equality",
+    "steps": [
+      "Declaration and access: basic, empty, single key, key not found panic, string value",
+      "Key set: update existing, add new, single unwraps, multi nests",
+      "## and @@: keys, values, after add/update, on non-map arrays",
+      "Dynamic access via $: string key read/write, int key on array, int key on map",
+      "Hashmap iteration: keys, values",
+      "Hashmap in functions: pass, return, mutate (pointer), build in loop",
+      "Hashmap equality: same structure, different values"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "semantic control flow tests — if/else, for-in, infinite loop, functions, scoping, combined",
+    "steps": [
+      "If/else: true branch, else branch, nested, comparison, logical, not, chained",
+      "For-in: basic, empty array, strings, nested, with break, with mutation",
+      "Infinite loop + break: counter, nested break, break after mutation",
+      "Functions: return value, early return, recursive, mutates array, local scope, multi-assign, nested calls",
+      "Variable scoping: reassignment, param shadow, loop var scope",
+      "Combined: build array in loop, error propagation, nested fn calls, array ops in loop, hashmap in loop"
+    ],
+    "passes": true
+  }
+]

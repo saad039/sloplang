@@ -206,6 +206,32 @@ Verify output: `[5]`, `[0]`, `[]`, `[1]`, nonzero error code for missing file.
 
 ---
 
+## Phase 7.5: Syntax Strictness Refactor + Semantic E2E Tests
+
+Harden the language semantics and verify every rule with exhaustive E2E tests.
+
+**Refactors:**
+- Bracket-only numeric/null literals: `x = 0` → `x = [0]`, `x = null` → `x = [null]`
+- `$var` unified dynamic access: replaces `@$var` and `@(expr)` — int key → index, string key → hashmap lookup
+- `true`/`false` standalone keywords: `true` → `[1]`, `false` → `[]`; `[true]` → `[[1]]` (nested)
+- FormatValue bracket notation: all non-string values use brackets (`[42]`, `[null]`, `[]`)
+- StdoutWrite uses `fmt.Print` (no trailing newline)
+- Deep structural equality: `==`/`!=` compare lengths, keys, and elements recursively
+- IndexSet/IndexKeySetStr single-element unwrap: `arr@1 = [999]` stores raw `999`, not nested `[999]`
+
+**Semantic E2E Tests (355 tests across 9 files):**
+- `semantic_mutation_e2e_test.go` — IndexSet, DynAccessSet, KeySetStr, Push, Pop, RemoveAt (50 tests)
+- `semantic_equality_e2e_test.go` — deep equality, cross-type, null, hashmap, ordered comparisons (45 tests)
+- `semantic_format_e2e_test.go` — str(), |> no newline, FormatValue after ops, hashmaps (32 tests)
+- `semantic_boolean_e2e_test.go` — IsTruthy strictness, logical ops, true/false keywords (41 tests)
+- `semantic_null_e2e_test.go` — null succeeds/panics in every operator context (36 tests)
+- `semantic_arithmetic_e2e_test.go` — type safety, element-wise, div-by-zero, negate, precedence (42 tests)
+- `semantic_array_ops_e2e_test.go` — index, slice, concat, remove, contains, unique, length (49 tests)
+- `semantic_hashmap_e2e_test.go` — declaration, key access/set, ##/@@, dynamic access, functions (28 tests)
+- `semantic_control_flow_e2e_test.go` — if/else, for-in, infinite loop, functions, scoping, combined (32 tests)
+
+---
+
 ## Phase 8: Real Programs
 
 Write actual sloplang programs and verify they produce correct output. No new features — this phase exercises everything together.

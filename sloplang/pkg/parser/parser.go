@@ -143,8 +143,8 @@ func (p *Parser) parseStatement() Stmt {
 			return nil
 		}
 		return &ExprStmt{Expr: expr}
-	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE, lexer.TOKEN_DOUBLE_HASH, lexer.TOKEN_DOUBLE_AT:
-		// Prefix operators and literals that start expression statements
+	case lexer.TOKEN_RSHIFT, lexer.TOKEN_HASH, lexer.TOKEN_TILDE, lexer.TOKEN_DOUBLE_HASH, lexer.TOKEN_DOUBLE_AT, lexer.TOKEN_TRUE, lexer.TOKEN_FALSE:
+		// Prefix operators, booleans, and literals that start expression statements
 		expr := p.parseExpression()
 		if expr == nil {
 			return nil
@@ -751,11 +751,6 @@ func (p *Parser) parsePrimary() Expr {
 	case lexer.TOKEN_IDENT:
 		return p.parseIdentifier()
 	case lexer.TOKEN_TRUE, lexer.TOKEN_FALSE:
-		if p.arrayDepth == 0 {
-			p.addError("bare boolean literals are not allowed outside []; use [1] for true and [] for false at line %d", p.curToken().Line)
-			p.advance()
-			return nil
-		}
 		return p.parseBoolLiteral()
 	case lexer.TOKEN_NULL:
 		if p.arrayDepth == 0 {

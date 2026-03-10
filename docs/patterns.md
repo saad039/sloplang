@@ -19,7 +19,7 @@
 - **Assignment uses `:=` first time, `=` for reassignment.** Track declared variables in a `map[string]bool`. Without this, `total = total + x` inside a loop creates a new shadowed variable each iteration via `:=`, never updating the outer one.
 - **Function bodies need their own scope.** Save/restore the `declared` map around `lowerFnDecl`. Function params must be pre-registered as declared so assignments to params use `=`.
 - **For-in loop variable needs `_ = varName` suppressor.** Just like regular assignments, the range variable can be unused in some cases.
-- **`FormatValue` on single-element SlopValue returns the value directly** (e.g., `7`), not `[7]`. The roadmap's expected output for `str(result)` where result is `[7]` is just `7`, not `[7]`.
+- **`FormatValue` always brackets non-string values.** Single-element SlopValues now format as `[42]`, not `42`. Only single-element strings remain unbracketed. This means `str([42])` returns `"[42]"`, `str([null])` returns `"[null]"`, etc. Multi-element arrays and empty arrays are unchanged.
 
 ## Lexer
 
@@ -43,18 +43,21 @@
 
 - **`##` and `@@` on single-key hashmaps return single-element SlopValues.** `str()` on a single-element SlopValue prints just the value (e.g., `"item"`) not `[item]`. When writing expected output for `str(##map)` or `str(@@map)` where the map has only one key, expect no brackets.
 - **HashDeclStmt re-declares the variable name with `:=`.** If you redeclare the same variable name via `m{a} = ...` then later `m{b} = ...`, Go codegen produces two `:=` for `m`, which fails compilation. Use different variable names in tests.
+- **`IndexSet` and `IndexKeySetStr` unwrap single-element SlopValues.** `data@1 = [999]` stores raw `999` (int64), not a nested `*SlopValue`. Multi-element values store the whole `*SlopValue` (genuine nesting). This matches `Push` which spreads elements. Without unwrapping, `[100, 200, 300]` with `data@1 = [999]` would incorrectly produce `[100, [999], 300]` instead of `[100, 999, 300]`.
 
 ## Error Handling
 
 - **`++` is array Concat, NOT string concatenation.** `"prefix: " ++ str(x)` produces a 2-element array `["prefix: ", "5"]` which formats as `[prefix: , 5]`, not `"prefix: 5"`. To build human-readable output, use separate `|>` calls instead.
 - **User-defined functions returning `[result, errcode]` work via `UnpackTwo`.** The `isDualReturn()` check only applies to builtins (`StdinRead`, `FileRead`, `to_num`). User functions return a single `*SlopValue` containing two elements, which `UnpackTwo` destructures correctly.
-- **Roadmap expected output for `str()` on single-element values uses brackets but actual output doesn't.** `str([5])` outputs `5`, not `[5]`. This is the `FormatValue` single-element behavior documented in Phase 2 patterns.
+- **`str()` on single-element numeric values now includes brackets.** `str([5])` outputs `[5]`. This matches the `FormatValue` bracket-all-non-strings behavior. File roundtrip patterns that relied on `str(x)` producing bare numbers (e.g., write `str([42])` to file, read back, `to_num()`) now break because `to_num("[42]")` fails.
+- **`StdoutWrite` uses `fmt.Print` not `fmt.Println`.** No trailing newline per output. Multiple `|>` statements concatenate their output directly. If newlines are needed, the slop source must include explicit `"\n"` strings.
+- **`==`/`!=` use deep structural equality.** `[1, 2] == [1, 2]`, `[1] == [1.0]`, and `[] == [1]` now succeed instead of panicking. Hashmaps compare both keys and values. Tests that previously used `runE2EExpectPanic` for these cases must be converted to regular `runE2E` tests. Ordered comparisons (`<`, `>`, `<=`, `>=`) still require single-element arrays.
 
 ## Syntax Strictness (Bracket-Wrapping Refactor)
 
 - **Bare numbers outside `[]` are rejected.** `x = 0` must be `x = [0]`. This applies everywhere: assignments, arithmetic operands (`count + [1]`), comparisons (`err != [0]`), return values (`<- [0]`), and modulo (`v % [2] == [0]`).
 - **Bare `null` outside `[]` is rejected.** `x = null` must be `x = [null]`. Same for `|> [null]`, comparisons (`[null] == [null]`), contains (`?? [null]`), arithmetic (`[null] + [1]`), negate (`-[null]`), conditionals (`if [null]`), not (`![null]`), comparisons (`[null] > [1]`), and iteration (`for x in [null]`).
-- **Bare `true`/`false` are rejected.** Use `[1]` for true and `[]` for false. `if true` becomes `if [1]`, `if false` becomes `if []`.
+- **`true` and `false` are standalone keywords.** `true` parses as `ArrayLiteral([1])`, `false` as `ArrayLiteral([])`. They do NOT require brackets. `[true]` creates `[[1]]` (nested), `[false]` creates `[[]]` (nested). Use `true` for truthy, `false` for falsy, or `[1]`/`[]` directly.
 - **`[0]` panics in boolean context.** `IsTruthy()` only accepts `[1]` (truthy) and `[]` (falsy). Tests that previously checked `![0]` output must become `runE2EExpectPanic` tests.
 - **Strings panic in boolean context.** `IsTruthy()` rejects single-element strings — tests using `if "hello"` must become panic tests.
 - **When refactoring tests for stricter syntax, search for ALL bare number patterns.** A partial fix (only the tests explicitly listed) will miss dozens of other tests using bare numbers in arithmetic, comparisons, and assignments. Run the full test suite after fixing the obvious ones.

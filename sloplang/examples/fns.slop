@@ -1,56 +1,223 @@
-// Function declaration and return
+// === Sloplang: Functions & Control Flow ===
+
+// --- Function declaration and call ---
+
 fn add(a, b) {
     <- a + b
 }
 result = add([3], [4])
-|> str(result)
+|> str(result)                      // output: [7]
+|> "\n"
 
-// Nested function calls
+// --- No-parameter function ---
+
+fn greeting() {
+    <- "hello"
+}
+|> greeting()                       // output: hello
+|> "\n"
+
+// --- Multiple parameters ---
+
+fn clamp(x, lo, hi) {
+    if x < lo {
+        <- lo
+    }
+    if x > hi {
+        <- hi
+    }
+    <- x
+}
+|> str(clamp([5], [1], [10]))      // output: [5]
+|> "\n"
+|> str(clamp([0], [1], [10]))      // output: [1]
+|> "\n"
+|> str(clamp([99], [1], [10]))     // output: [10]
+|> "\n"
+
+// --- Nested function calls ---
+
 fn double(x) {
     <- x * [2]
 }
-|> str(double(add([1], [2])))
+|> str(double(add([1], [2])))      // output: [6]
+|> "\n"
 
-// if/else branching
-score = [85]
-if score >= [90] {
-    |> "A"
-} else {
-    if score >= [80] {
-        |> "B"
-    } else {
-        |> "C"
-    }
-}
+// --- Early return ---
 
-// for-in loop
-items = [10, 20, 30]
-for item in items {
-    |> str(item)
-}
-
-// Infinite for loop with break
-i = [0]
-for {
-    if i == [5] {
-        break
-    }
-    |> str(i)
-    i = i + [1]
-}
-
-// Multi-assign
-pair = [[1], [2]]
-a, b = pair
-|> str(a)
-|> str(b)
-
-// Function returning early
 fn abs(x) {
     if x < [0] {
         <- -x
     }
     <- x
 }
-|> str(abs(-[7]))
-|> str(abs([3]))
+|> str(abs(-[7]))                   // output: [7]
+|> "\n"
+|> str(abs([3]))                    // output: [3]
+|> "\n"
+
+// --- Recursion ---
+
+fn factorial(n) {
+    if n <= [1] {
+        <- [1]
+    }
+    <- n * factorial(n - [1])
+}
+|> str(factorial([5]))              // output: [120]
+|> "\n"
+
+fn countdown(n) {
+    if n == [0] {
+        |> "done\n"
+        <- []
+    }
+    |> str(n)
+    |> "\n"
+    <- countdown(n - [1])
+}
+countdown([3])
+// output: [3] / [2] / [1] / done
+
+// --- Scope: parameters shadow globals ---
+
+outer = [100]
+fn shadowed(outer) {
+    <- outer + [1]
+}
+|> str(shadowed([5]))               // output: [6]
+|> "\n"
+|> str(outer)                       // output: [100]
+|> "\n"
+
+// === Control Flow ===
+
+// --- if / else ---
+
+score = [85]
+if score >= [90] {
+    |> "A\n"
+} else {
+    if score >= [80] {
+        |> "B\n"                    // output: B
+    } else {
+        |> "C\n"
+    }
+}
+
+// --- if with true/false keywords ---
+
+if true {
+    |> "true branch\n"             // output: true branch
+}
+
+if false {
+    |> "never"
+} else {
+    |> "false branch\n"            // output: false branch
+}
+
+// --- for-in loop ---
+
+items = [10, 20, 30]
+for item in items {
+    |> str(item)
+    |> "\n"
+}
+// output: [10] / [20] / [30]
+
+// --- for-in over strings ---
+
+for s in ["a", "b", "c"] {
+    |> s
+    |> "\n"
+}
+// output: a / b / c
+
+// --- for-in with break ---
+
+for item in [1, 2, 3, 4, 5] {
+    if item == [3] {
+        break
+    }
+    |> str(item)
+    |> "\n"
+}
+// output: [1] / [2]
+
+// --- for-in with filter pattern ---
+
+evens = []
+for n in [1, 2, 3, 4, 5, 6] {
+    if n % [2] == [0] {
+        evens << n
+    }
+}
+|> str(evens)                       // output: [2, 4, 6]
+|> "\n"
+
+// --- Infinite loop with break ---
+
+i = [0]
+for {
+    if i == [5] {
+        break
+    }
+    |> str(i)
+    |> "\n"
+    i = i + [1]
+}
+// output: [0] / [1] / [2] / [3] / [4]
+
+// --- Accumulation pattern ---
+
+total = [0]
+j = [1]
+for {
+    if j > [5] {
+        break
+    }
+    total = total + j
+    j = j + [1]
+}
+|> str(total)                       // output: [15]
+|> "\n"
+
+// --- Multi-assign (unpacking) ---
+
+pair = [[10], [20]]
+a, b = pair
+|> str(a)                           // output: [10]
+|> "\n"
+|> str(b)                           // output: [20]
+|> "\n"
+
+// Multi-assign from function
+fn divmod(x, y) {
+    <- [x / y, x % y]
+}
+q, r = divmod([7], [3])
+|> str(q)                           // output: [2]
+|> "\n"
+|> str(r)                           // output: [1]
+|> "\n"
+
+// --- Iterative Fibonacci ---
+
+fn fib(n) {
+    a = [0]
+    b = [1]
+    c = [0]
+    for {
+        if c == n {
+            break
+        }
+        temp = b
+        b = a + b
+        a = temp
+        c = c + [1]
+    }
+    <- a
+}
+|> str(fib([10]))                   // output: [55]
+|> "\n"

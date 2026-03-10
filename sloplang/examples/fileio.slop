@@ -1,27 +1,97 @@
-// Write to file
+// === Sloplang: File I/O & Stdin ===
+
+// --- Write to file (.>) ---
+
 .> "demo.txt" "hello file"
 
-// Read from file
+// --- Read from file (<.) — dual return ---
+// Returns (data, errcode): errcode [0] = success, [1] = failure
+
 data, err = <. "demo.txt"
 if err != [0] {
-    |> "read failed"
+    |> "read failed\n"
 }
-|> data
+|> data                             // output: hello file
+|> "\n"
 
-// Append to file
+// --- Append to file (.>>) ---
+
 .>> "demo.txt" "\nline two"
 
-// Read again
+// Read again to see appended content
 data2, err2 = <. "demo.txt"
-|> data2
+|> data2                            // output: hello file (newline) line two
+|> "\n"
 
-// Split
-words = split("the cat sat on the mat", " ")
-|> str(words)
+// --- Overwrite with .> (truncates) ---
 
-// to_num
-val, nerr = to_num("42")
-|> str(val)
+.> "demo.txt" "fresh start"
+data3, err3 = <. "demo.txt"
+|> data3                            // output: fresh start
+|> "\n"
 
-badval, berr = to_num("abc")
-|> str(berr)
+// --- Reading non-existent file ---
+
+nodata, noerr = <. "nonexistent.txt"
+if noerr != [0] {
+    |> "file not found\n"           // output: file not found
+}
+
+// --- Write and read array data ---
+// I/O is string-based: str([1, 2, 3]) writes "[1, 2, 3]"
+// Reading it back gives the string "[1, 2, 3]"
+// Use to_num() for explicit type conversion
+
+arr = [1, 2, 3]
+.> "nums.txt" str(arr)
+back, rerr = <. "nums.txt"
+|> back                             // output: [1, 2, 3]  (as string)
+|> "\n"
+
+// --- Split file content ---
+
+.> "csv.txt" "alice,bob,charlie"
+csvdata, cerr = <. "csv.txt"
+names = split(csvdata, ",")
+for name in names {
+    |> name
+    |> "\n"
+}
+// output: alice / bob / charlie
+
+// --- Stdin read (<|) — dual return ---
+// Returns (line, errcode): reads one line from stdin
+// errcode [0] = success, [1] = EOF
+// All I/O is string-based — use to_num() to convert
+//
+// Example usage (not run here since it needs interactive input):
+//
+//   line, err = <|
+//   if err != [0] {
+//       |> "end of input\n"
+//   }
+//   |> line
+//   |> "\n"
+
+// --- Error handling pattern ---
+
+fn safe_read(path) {
+    content, err = <. path
+    if err != [0] {
+        <- ["", [1]]
+    }
+    <- [content, [0]]
+}
+
+result, status = safe_read("demo.txt")
+if status == [0] {
+    |> result                       // output: fresh start
+    |> "\n"
+} else {
+    |> "could not read\n"
+}
+
+result2, status2 = safe_read("missing.txt")
+if status2 != [0] {
+    |> "missing file handled\n"     // output: missing file handled
+}

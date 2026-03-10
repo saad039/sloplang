@@ -1,0 +1,146 @@
+// === Sloplang: String Operations ===
+
+// --- String literals ---
+
+|> "hello world\n"                  // output: hello world
+|> "\n"                             // output: (blank line)
+
+// --- Escape sequences ---
+
+|> "tab:\there\n"                   // output: tab:	here
+|> "line1\nline2\n"                 // output: line1 / line2
+|> "quote: \"\n"                    // output: quote: "
+|> "backslash: \\\n"               // output: backslash: \
+
+// --- str() builtin — converts any value to string ---
+
+|> str([1, 2, 3])                   // output: [1, 2, 3]
+|> "\n"
+|> str([42])                        // output: [42]
+|> "\n"
+|> str([])                          // output: []
+|> "\n"
+|> str("hello")                     // output: hello
+|> "\n"
+|> str([null])                      // output: [null]
+|> "\n"
+
+// str of expression result
+|> str([1] + [2])                   // output: [3]
+|> "\n"
+
+// --- split(string, separator) ---
+
+words = split("the cat sat", " ")
+|> str(words)                       // output: [the, cat, sat]
+|> "\n"
+
+// Split by newline
+lines = split("a\nb\nc", "\n")
+|> str(lines)                       // output: [a, b, c]
+|> "\n"
+
+// Multi-char separator
+parts = split("a::b::c", "::")
+|> str(parts)                       // output: [a, b, c]
+|> "\n"
+
+// No match — returns original string
+|> split("hello", ",")             // output: hello
+|> "\n"
+
+// Empty separator — returns original string
+|> split("hello", "")             // output: hello
+|> "\n"
+
+// --- Split edge cases ---
+
+// Trailing separator
+|> str(split("a,b,", ","))        // output: [a, b, ]
+|> "\n"
+
+// Leading separator
+|> str(split(",a,b", ","))        // output: [, a, b]
+|> "\n"
+
+// --- Split result operations ---
+
+// Index into split result
+fruit = split("apple,banana,cherry", ",")
+|> fruit@0                          // output: apple
+|> "\n"
+|> fruit@2                          // output: cherry
+|> "\n"
+
+// Length of split result
+|> str(#fruit)                      // output: [3]
+|> "\n"
+
+// Iterate split result
+for w in split("x y z", " ") {
+    |> w
+    |> "\n"
+}
+// output: x / y / z
+
+// Contains on split result
+if split("dog cat bird", " ") ?? "cat" {
+    |> "found cat\n"                // output: found cat
+}
+
+// --- to_num(string) — dual return ---
+
+// Integer
+val, err = to_num("42")
+|> str(val)                         // output: [42]
+|> "\n"
+|> str(err)                         // output: [0]
+|> "\n"
+
+// Float
+fval, ferr = to_num("3.14")
+|> str(fval)                        // output: [3.14]
+|> "\n"
+
+// Negative
+nval, nerr = to_num("-99")
+|> str(nval)                        // output: [-99]
+|> "\n"
+
+// Failure — non-numeric string
+badval, berr = to_num("abc")
+|> str(badval)                      // output: []
+|> "\n"
+|> str(berr)                        // output: [1]
+|> "\n"
+
+// Leading zeros
+lval, lerr = to_num("007")
+|> str(lval)                        // output: [7]
+|> "\n"
+
+// Scientific notation
+sval, serr = to_num("1e3")
+|> str(sval)                        // output: [1000]
+|> "\n"
+
+// --- to_num with error checking ---
+
+input = "not a number"
+v, e = to_num(input)
+if e != [0] {
+    |> "parse failed\n"             // output: parse failed
+} else {
+    |> str(v)
+}
+
+// --- to_num result in arithmetic ---
+
+a, ae = to_num("10")
+b, be = to_num("20")
+if ae == [0] {
+    if be == [0] {
+        |> str(a + b)               // output: [30]
+        |> "\n"
+    }
+}

@@ -72,8 +72,9 @@ x = [null, null]      // array with null elements
 - `[0]` is **not a valid boolean** — panics with "use [] for false"
 - Multi-element arrays in boolean context **panic**
 - Strings, floats, null in boolean context **panic**
-- `true` and `false` keywords are only allowed inside `[]`: `[true]` = `[1]`, `[false]` = `[]`
-- Bare `true`/`false` outside brackets is a parse error
+- `true` is a reserved keyword that produces `[1]`, `false` produces `[]`
+- `true`/`false` are standalone (no brackets needed): `if true { }`, `x = false`
+- `[true]` creates `[[1]]` (nested), `[false]` creates `[[]]` (nested) — avoid this
 
 ### Comments
 
@@ -99,11 +100,12 @@ Element-wise, binary, same-length arrays required. NO broadcasting. Mismatched l
 
 ### Comparisons
 
-Single-element arrays only. Multi-element comparison is a runtime error.
+`==` and `!=` perform **deep structural equality** on any-size arrays and hashmaps (compares lengths, keys, and all elements recursively). `<`, `>`, `<=`, `>=` require single-element arrays only.
 
 | Op | Example | Result |
 |----|---------|--------|
 | `==` | `[2] == [2]` | `[1]` (truthy) |
+| `==` | `[1, 2] == [1, 2]` | `[1]` (deep equal) |
 | `!=` | `[2] != [3]` | `[1]` |
 | `<` | `[1] < [2]` | `[1]` |
 | `>` | `[2] > [1]` | `[1]` |
@@ -148,7 +150,7 @@ No buffering on any I/O operation.
 |----|------|-------|
 | `<\|` | Read stdin | `line = <\|` (reads one line from stdin) |
 | `<.` | Read file | `data, err = <. "file.txt"` (reads entire file) |
-| `\|>` | Write stdout | `\|> "hello world"` |
+| `\|>` | Write stdout (no trailing newline) | `\|> "hello world"` — use `\|> "\n"` for newlines |
 | `.>` | Write file | `.> "file.txt" data` |
 | `.>>` | Append file | `.>> "file.txt" data` |
 
@@ -217,9 +219,9 @@ Functions are first-class values.
 
 | Function | Description |
 |----------|-------------|
-| `split(str, sep)` | Split string by separator |
-| `str(val)` | Convert value to string |
-| `to_num(str)` | Convert string to number |
+| `split(str, sep)` | Split string by separator, returns array of strings |
+| `str(val)` | Convert value to string — single-element strings return raw string, everything else uses bracket notation (`[42]`, `[1, 2]`, `[null]`, `[]`) |
+| `to_num(str)` | Convert string to number — dual return `(val, err)`, err `[0]` = success, `[1]` = failure |
 
 ## Control Flow
 

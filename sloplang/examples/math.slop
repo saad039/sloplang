@@ -1,54 +1,125 @@
-// Numeric types
+// === Sloplang: Numeric Types & Arithmetic ===
+
+// --- Numeric Types ---
+
+// Integer (int64) — default for whole numbers
 x = [42]
+|> str(x)                           // output: [42]
+|> "\n"
+
+// Unsigned integer (uint64) — u suffix
 y = [42u]
+|> str(y)                           // output: [42]
+|> "\n"
+
+// Float (float64) — has decimal point
 z = [3.14]
-|> str(x)
-|> str(y)
-|> str(z)
+|> str(z)                           // output: [3.14]
+|> "\n"
 
-// Arithmetic: +, -, *, /, %, **
+// Multi-element arrays of each type
+ints = [10, 20, 30]
+|> str(ints)                        // output: [10, 20, 30]
+|> "\n"
+
+uints = [10u, 20u]
+|> str(uints)                       // output: [10, 20]
+|> "\n"
+
+floats = [1.5, 2.5, 3.5]
+|> str(floats)                      // output: [1.5, 2.5, 3.5]
+|> "\n"
+
+// Mixed-type arrays (any mix is fine inside one array)
+mixed = [1, 3.14, "hi"]
+|> str(mixed)                       // output: [1, 3.14, hi]
+|> "\n"
+
+// Nested arrays
+nested = [[1, 2], [3, 4]]
+|> str(nested)                      // output: [[1, 2], [3, 4]]
+|> "\n"
+
+// --- Arithmetic (element-wise, same-length required) ---
+
+// Addition
 a = [10, 20] + [3, 4]
-|> str(a)
-b = [10, 20] - [3, 4]
-|> str(b)
-c = [2, 3] * [4, 5]
-|> str(c)
-d = [10, 6] / [2, 3]
-|> str(d)
-e = [7, 5] % [3, 2]
-|> str(e)
-f = [2, 3] ** [3, 2]
-|> str(f)
+|> str(a)                           // output: [13, 24]
+|> "\n"
 
-// Unary negation
+// Subtraction
+b = [10, 20] - [3, 4]
+|> str(b)                           // output: [7, 16]
+|> "\n"
+
+// Multiplication
+c = [2, 3] * [4, 5]
+|> str(c)                           // output: [8, 15]
+|> "\n"
+
+// Division (integer division for ints)
+d = [10, 6] / [2, 3]
+|> str(d)                           // output: [5, 2]
+|> "\n"
+
+// Modulo
+e = [7, 5] % [3, 2]
+|> str(e)                           // output: [1, 1]
+|> "\n"
+
+// Power
+f = [2, 3] ** [3, 2]
+|> str(f)                           // output: [8, 9]
+|> "\n"
+
+// Single-element arithmetic
+|> str([1] + [1])                   // output: [2]
+|> "\n"
+|> str([10] - [3])                  // output: [7]
+|> "\n"
+|> str([10] / [2])                  // output: [5]
+|> "\n"
+
+// Chained operations (left-to-right)
+|> str([10] - [2] - [3])           // output: [5]  (= (10-2)-3)
+|> "\n"
+
+// Operator precedence
+|> str([2] * [3] + [1])            // output: [7]  (mul before add)
+|> "\n"
+|> str(([1] + [2]) * [3])          // output: [9]  (parens override)
+|> "\n"
+
+// --- Unary negation ---
+
 neg = -[1, 2, 3]
-|> str(neg)
+|> str(neg)                         // output: [-1, -2, -3]
+|> "\n"
+
+// Double negate (-- is the remove operator, so use -(-x))
+|> str(-(-[5]))                     // output: [5]
+|> "\n"
+
+// Negate empty array
+|> str(-[])                         // output: []
+|> "\n"
 
 // Float arithmetic
 fa = [3.14] + [2.86]
-|> str(fa)
+|> str(fa)                          // output: [6]
+|> "\n"
 
 // Uint arithmetic
 ua = [10u] + [5u]
-|> str(ua)
+|> str(ua)                          // output: [15]
+|> "\n"
 
-// Comparisons: ==, !=, <, >, <=, >=
-|> str([2] == [2])
-|> str([2] != [3])
-|> str([1] < [2])
-|> str([2] > [1])
-|> str([1] <= [1])
-|> str([2] >= [1])
+// Arithmetic on empty arrays
+|> str([] + [])                     // output: []
+|> "\n"
 
-// Logical: &&, ||, !
-|> str([1] && [1])
-|> str([] || [1])
-|> str(![])
-
-// Boolean expressions
-if [1] {
-    |> "truthy branch"
-}
-if ![] {
-    |> "falsy branch"
-}
+// Zero operations
+|> str([0] - [0])                   // output: [0]
+|> "\n"
+|> str([1] * [0])                   // output: [0]
+|> "\n"

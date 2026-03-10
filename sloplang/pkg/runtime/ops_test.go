@@ -13,22 +13,22 @@ func TestAdd_IntArrays(t *testing.T) {
 
 func TestAdd_SingleElement(t *testing.T) {
 	result := Add(NewSlopValue(int64(1)), NewSlopValue(int64(1)))
-	if got := FormatValue(result); got != "2" {
-		t.Fatalf("expected 2, got %s", got)
+	if got := FormatValue(result); got != "[2]" {
+		t.Fatalf("expected [2], got %s", got)
 	}
 }
 
 func TestAdd_Float(t *testing.T) {
 	result := Add(NewSlopValue(float64(3.14)), NewSlopValue(float64(2.86)))
-	if got := FormatValue(result); got != "6" {
-		t.Fatalf("expected 6, got %s", got)
+	if got := FormatValue(result); got != "[6]" {
+		t.Fatalf("expected [6], got %s", got)
 	}
 }
 
 func TestAdd_Uint(t *testing.T) {
 	result := Add(NewSlopValue(uint64(42)), NewSlopValue(uint64(8)))
-	if got := FormatValue(result); got != "50" {
-		t.Fatalf("expected 50, got %s", got)
+	if got := FormatValue(result); got != "[50]" {
+		t.Fatalf("expected [50], got %s", got)
 	}
 }
 
@@ -76,15 +76,15 @@ func TestNegate(t *testing.T) {
 
 func TestNegate_Zero(t *testing.T) {
 	result := Negate(NewSlopValue(int64(0)))
-	if got := FormatValue(result); got != "0" {
-		t.Fatalf("expected 0, got %s", got)
+	if got := FormatValue(result); got != "[0]" {
+		t.Fatalf("expected [0], got %s", got)
 	}
 }
 
 func TestNegate_Float(t *testing.T) {
 	result := Negate(NewSlopValue(float64(3.14)))
-	if got := FormatValue(result); got != "-3.14" {
-		t.Fatalf("expected -3.14, got %s", got)
+	if got := FormatValue(result); got != "[-3.14]" {
+		t.Fatalf("expected [-3.14], got %s", got)
 	}
 }
 
@@ -108,8 +108,8 @@ func TestAdd_TypeMismatch(t *testing.T) {
 
 func TestMul_ByZero(t *testing.T) {
 	result := Mul(NewSlopValue(int64(1)), NewSlopValue(int64(0)))
-	if got := FormatValue(result); got != "0" {
-		t.Fatalf("expected 0, got %s", got)
+	if got := FormatValue(result); got != "[0]" {
+		t.Fatalf("expected [0], got %s", got)
 	}
 }
 
@@ -117,8 +117,8 @@ func TestMul_ByZero(t *testing.T) {
 
 func TestEq_True(t *testing.T) {
 	result := Eq(NewSlopValue(int64(2)), NewSlopValue(int64(2)))
-	if got := FormatValue(result); got != "1" {
-		t.Fatalf("expected 1, got %s", got)
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
 	}
 }
 
@@ -131,36 +131,36 @@ func TestEq_False(t *testing.T) {
 
 func TestEq_String(t *testing.T) {
 	result := Eq(NewSlopValue("abc"), NewSlopValue("abc"))
-	if got := FormatValue(result); got != "1" {
-		t.Fatalf("expected 1, got %s", got)
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
 	}
 }
 
 func TestNeq(t *testing.T) {
 	result := Neq(NewSlopValue(int64(2)), NewSlopValue(int64(3)))
-	if got := FormatValue(result); got != "1" {
-		t.Fatalf("expected 1, got %s", got)
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
 	}
 }
 
 func TestLt(t *testing.T) {
 	result := Lt(NewSlopValue(int64(1)), NewSlopValue(int64(2)))
-	if got := FormatValue(result); got != "1" {
-		t.Fatalf("expected 1, got %s", got)
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
 	}
 }
 
 func TestGt(t *testing.T) {
 	result := Gt(NewSlopValue(int64(2)), NewSlopValue(int64(1)))
-	if got := FormatValue(result); got != "1" {
-		t.Fatalf("expected 1, got %s", got)
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
 	}
 }
 
 func TestLte_Equal(t *testing.T) {
 	result := Lte(NewSlopValue(int64(1)), NewSlopValue(int64(1)))
-	if got := FormatValue(result); got != "1" {
-		t.Fatalf("expected 1, got %s", got)
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
 	}
 }
 
@@ -171,13 +171,11 @@ func TestGte_Less(t *testing.T) {
 	}
 }
 
-func TestEq_MultiElement_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on multi-element comparison")
-		}
-	}()
-	Eq(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(1), int64(2)))
+func TestEq_MultiElement_DeepEqual(t *testing.T) {
+	result := Eq(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(1), int64(2)))
+	if got := FormatValue(result); got != "[1]" {
+		t.Fatalf("expected [1], got %s", got)
+	}
 }
 
 // Logical tests
@@ -237,8 +235,8 @@ func TestStr(t *testing.T) {
 func TestStr_SingleElement(t *testing.T) {
 	result := Str(NewSlopValue(int64(42)))
 	s := result.Elements[0].(string)
-	if s != "42" {
-		t.Fatalf("expected '42', got %q", s)
+	if s != "[42]" {
+		t.Fatalf("expected '[42]', got %q", s)
 	}
 }
 
@@ -544,13 +542,11 @@ func TestNegate_EmptyArray(t *testing.T) {
 
 // --- Comparison panic tests ---
 
-func TestNeq_MultiElement_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on multi-element !=")
-		}
-	}()
-	Neq(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(1), int64(2)))
+func TestNeq_MultiElement_DeepEqual(t *testing.T) {
+	result := Neq(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(1), int64(2)))
+	if got := FormatValue(result); got != "[]" {
+		t.Fatalf("expected [], got %s", got)
+	}
 }
 
 func TestLt_MultiElement_Panics(t *testing.T) {
@@ -589,13 +585,11 @@ func TestGte_MultiElement_Panics(t *testing.T) {
 	Gte(NewSlopValue(int64(1), int64(2)), NewSlopValue(int64(3), int64(4)))
 }
 
-func TestEq_EmptyVsNonEmpty_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic: empty vs non-empty comparison")
-		}
-	}()
-	Eq(NewSlopValue(), NewSlopValue(int64(1)))
+func TestEq_EmptyVsNonEmpty(t *testing.T) {
+	result := Eq(NewSlopValue(), NewSlopValue(int64(1)))
+	if got := FormatValue(result); got != "[]" {
+		t.Fatalf("expected [], got %s", got)
+	}
 }
 
 func TestLt_EmptyArray_Panics(t *testing.T) {
@@ -607,22 +601,18 @@ func TestLt_EmptyArray_Panics(t *testing.T) {
 	Lt(NewSlopValue(), NewSlopValue())
 }
 
-func TestEq_TypeMismatch_IntVsFloat_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic: int64 vs float64 comparison")
-		}
-	}()
-	Eq(NewSlopValue(int64(1)), NewSlopValue(float64(1.0)))
+func TestEq_TypeMismatch_IntVsFloat(t *testing.T) {
+	result := Eq(NewSlopValue(int64(1)), NewSlopValue(float64(1.0)))
+	if got := FormatValue(result); got != "[]" {
+		t.Fatalf("expected [], got %s", got)
+	}
 }
 
-func TestEq_TypeMismatch_IntVsString_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic: int64 vs string comparison")
-		}
-	}()
-	Eq(NewSlopValue(int64(1)), NewSlopValue("1"))
+func TestEq_TypeMismatch_IntVsString(t *testing.T) {
+	result := Eq(NewSlopValue(int64(1)), NewSlopValue("1"))
+	if got := FormatValue(result); got != "[]" {
+		t.Fatalf("expected [], got %s", got)
+	}
 }
 
 func TestLt_TypeMismatch_IntVsUint_Panics(t *testing.T) {
@@ -723,8 +713,8 @@ func TestFormatValue_NestedEmpty(t *testing.T) {
 	inner := NewSlopValue()
 	outer := NewSlopValue(inner)
 	got := FormatValue(outer)
-	if got != "[]" {
-		t.Fatalf("expected '[]', got %q", got)
+	if got != "[[]]" {
+		t.Fatalf("expected '[[]]', got %q", got)
 	}
 }
 
@@ -733,8 +723,8 @@ func TestFormatValue_DeeplyNested(t *testing.T) {
 	mid := NewSlopValue(inner)
 	outer := NewSlopValue(mid, int64(2))
 	got := FormatValue(outer)
-	if got != "[1, 2]" {
-		t.Fatalf("expected '[1, 2]', got %q", got)
+	if got != "[[[1]], 2]" {
+		t.Fatalf("expected '[[[1]], 2]', got %q", got)
 	}
 }
 
@@ -840,12 +830,12 @@ func TestIndexSet_Basic(t *testing.T) {
 	if result != sv {
 		t.Fatal("expected IndexSet to return same pointer")
 	}
-	nested, ok := sv.Elements[1].(*SlopValue)
+	raw, ok := sv.Elements[1].(int64)
 	if !ok {
-		t.Fatalf("expected *SlopValue at index 1, got %T", sv.Elements[1])
+		t.Fatalf("expected int64 at index 1, got %T", sv.Elements[1])
 	}
-	if nested.Elements[0].(int64) != 99 {
-		t.Fatalf("expected 99, got %v", nested.Elements[0])
+	if raw != 99 {
+		t.Fatalf("expected 99, got %v", raw)
 	}
 }
 
@@ -1235,9 +1225,9 @@ func TestIndexKeySetStr_Update(t *testing.T) {
 	if result != m {
 		t.Fatal("expected same pointer returned")
 	}
-	// Check the element was updated
-	if m.Elements[1].(*SlopValue) != newVal {
-		t.Fatalf("expected updated value, got %v", m.Elements[1])
+	// Check the element was updated (single-element SlopValue unwrapped to raw int64)
+	if m.Elements[1].(int64) != 31 {
+		t.Fatalf("expected 31, got %v", m.Elements[1])
 	}
 }
 
@@ -1251,8 +1241,9 @@ func TestIndexKeySetStr_AddNew(t *testing.T) {
 	if len(m.Elements) != 2 {
 		t.Fatalf("expected 2 elements, got %d", len(m.Elements))
 	}
-	if m.Elements[1].(*SlopValue) != newVal {
-		t.Fatalf("expected new value at index 1")
+	// Single-element string SlopValue unwrapped to raw string
+	if m.Elements[1].(string) != "bob@test.com" {
+		t.Fatalf("expected bob@test.com at index 1, got %v", m.Elements[1])
 	}
 }
 
@@ -1335,8 +1326,8 @@ func TestIterate_MixedTypes(t *testing.T) {
 
 func TestFormatValue_Null(t *testing.T) {
 	got := FormatValue(NewSlopValue(SlopNull{}))
-	if got != "null" {
-		t.Fatalf("expected 'null', got %q", got)
+	if got != "[null]" {
+		t.Fatalf("expected '[null]', got %q", got)
 	}
 }
 
@@ -1515,12 +1506,12 @@ func TestDynAccessSet_IntKey(t *testing.T) {
 	idx := NewSlopValue(int64(1))
 	val := NewSlopValue(int64(99))
 	DynAccessSet(arr, idx, val)
-	nested, ok := arr.Elements[1].(*SlopValue)
+	raw, ok := arr.Elements[1].(int64)
 	if !ok {
-		t.Fatalf("expected *SlopValue at index 1, got %T", arr.Elements[1])
+		t.Fatalf("expected int64 at index 1, got %T", arr.Elements[1])
 	}
-	if nested.Elements[0] != int64(99) {
-		t.Fatalf("expected 99, got %v", nested.Elements[0])
+	if raw != 99 {
+		t.Fatalf("expected 99, got %v", raw)
 	}
 }
 

@@ -82,8 +82,8 @@ func TestIsTruthy_Empty(t *testing.T) {
 
 func TestFormatValue_SingleInt(t *testing.T) {
 	sv := NewSlopValue(int64(42))
-	if got := FormatValue(sv); got != "42" {
-		t.Fatalf("expected '42', got '%s'", got)
+	if got := FormatValue(sv); got != "[42]" {
+		t.Fatalf("expected '[42]', got '%s'", got)
 	}
 }
 
@@ -109,6 +109,13 @@ func TestFormatValue_Empty(t *testing.T) {
 	}
 }
 
+func TestFormatValue_SingleString(t *testing.T) {
+	sv := NewSlopValue("hello")
+	if got := FormatValue(sv); got != "hello" {
+		t.Fatalf("expected 'hello', got '%s'", got)
+	}
+}
+
 func captureStdout(fn func()) string {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
@@ -126,15 +133,15 @@ func captureStdout(fn func()) string {
 func TestStdoutWrite_String(t *testing.T) {
 	sv := NewSlopValue("hello world")
 	out := captureStdout(func() { StdoutWrite(sv) })
-	if out != "hello world\n" {
-		t.Fatalf("expected 'hello world\\n', got %q", out)
+	if out != "hello world" {
+		t.Fatalf("expected 'hello world', got %q", out)
 	}
 }
 
 func TestStdoutWrite_IntArray(t *testing.T) {
 	sv := NewSlopValue(int64(1), int64(2), int64(3))
 	out := captureStdout(func() { StdoutWrite(sv) })
-	if out != "[1, 2, 3]\n" {
-		t.Fatalf("expected '[1, 2, 3]\\n', got %q", out)
+	if out != "[1, 2, 3]" {
+		t.Fatalf("expected '[1, 2, 3]', got %q", out)
 	}
 }
