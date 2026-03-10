@@ -13,8 +13,9 @@ An array-first programming language that transpiles to Go. Arrays are the univer
 ## Build Commands
 
 ```bash
-go build ./cmd/slop/...         # Build the transpiler
-go run ./cmd/slop/main.go <file.slop>  # Transpile a .slop file
+go build -o slop ./cmd/slop/...        # Build the transpiler
+./slop <file.slop>                     # Transpile + compile + run a .slop file
+go run ./cmd/slop/main.go <file.slop>  # Same, without building first
 ```
 
 ---

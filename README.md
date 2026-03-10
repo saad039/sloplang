@@ -101,26 +101,22 @@ go run ./cmd/slop/main.go <file.slop>
 ## Usage
 
 ```bash
-# transpile a .slop file to Go
+# transpile and run a .slop file in one step
 ./slop program.slop
-# -> outputs program.go
-
-# compile and run the generated Go
-go run program.go
 ```
 
-The transpiler reads `<file>.slop`, generates `<file>.go` in the same directory, and prints the output path. The generated Go file imports the sloplang runtime, so make sure the module is available.
+The CLI transpiles `<file>.slop` to `<file>.go`, compiles it, and runs the binary. The generated `.go` file is kept in the same directory for inspection.
 
 ## Run the Examples
 
 ```bash
 cd sloplang
 
-# transpile an example
-go run ./cmd/slop/main.go examples/hello.slop
+# run an example
+./slop examples/hello.slop
 
-# run the generated Go
-go run examples/hello.go
+# or without building first
+go run ./cmd/slop/main.go examples/hello.slop
 ```
 
 ## Tests
