@@ -1,5 +1,112 @@
 [
   {
+    "category": "runtime",
+    "description": "DynAccess and DynAccessSet dispatch on key type (int64 → Index, string → KeyStr)",
+    "steps": [
+      "Write TestDynAccess_IntKey, TestDynAccess_StringKey, TestDynAccessSet_IntKey, TestDynAccessSet_StringKey",
+      "Run tests, verify they fail (undefined)",
+      "Implement DynAccess and DynAccessSet in ops.go",
+      "Run tests, verify they pass",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Strict boolean — only [1] truthy, only [] falsy, everything else panics",
+    "steps": [
+      "Write TestIsTruthy_One, TestIsTruthy_Empty, TestIsTruthy_Zero_Panics, TestIsTruthy_MultiElement_Panics, TestIsTruthy_String_Panics",
+      "Run tests, verify panic tests fail (currently don't panic)",
+      "Implement strict IsTruthy in slop_value.go",
+      "Fix existing runtime tests that rely on old truthiness",
+      "Run all runtime tests, verify pass",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Add $var postfix syntax, remove @(expr) and @$var",
+    "steps": [
+      "Rename DynKeyAccessExpr → DynAccessExpr, DynKeySetStmt → DynAccessSetStmt in ast.go",
+      "Add TOKEN_DOLLAR as postfix operator in parsePostfix()",
+      "Add $var = statement dispatch in parseStatement()",
+      "Remove @$ handling from parsePostfix() and @$var= from parseStatement()",
+      "Remove @(expr) parenthesized index from parsePostfix()",
+      "Run parser tests, verify pass",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "Emit DynAccess/DynAccessSet for $var syntax",
+    "steps": [
+      "Update lowerExpr() DynKeyAccessExpr → DynAccessExpr case to call DynAccess",
+      "Update lowerStmt() DynKeySetStmt → DynAccessSetStmt case to call DynAccessSet",
+      "Run codegen unit tests, verify pass",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "parser",
+    "description": "Reject bare numbers, booleans, null outside [] brackets",
+    "steps": [
+      "Remove TOKEN_INT/UINT/FLOAT, TOKEN_TRUE/FALSE, TOKEN_NULL from parsePrimary()",
+      "Write TestParser_RejectBareNumber, TestParser_RejectBareNull, TestParser_RejectBareTrue",
+      "Run parser tests, verify rejection tests pass",
+      "Fix any existing parser tests that use bare literals",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "Update all E2E tests for bracketed literals, strict booleans, and $var syntax (~90 changes across ~70 tests)",
+    "steps": [
+      "Replace bare numbers (= 0, == 0, != 0) with bracketed equivalents",
+      "Replace bare null with [null]",
+      "Rewrite strict boolean violations (if [0], if \"\", ![0], if result)",
+      "Replace @(ident) with $ident, @$var with $var",
+      "Add temp variables for compound @(expr) cases",
+      "Run all E2E tests, verify pass",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "Update example .slop files for new syntax",
+    "steps": [
+      "Update all examples/ files for bracketed literals, strict booleans, $var syntax",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "docs",
+    "description": "Update PRD, architecture, patterns, roadmap for all syntax changes",
+    "steps": [
+      "Update PRD operator table, boolean semantics, examples",
+      "Update architecture doc",
+      "Add patterns.md entries for syntax changes",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Remove dead IndexKey/IndexKeySet and old @$ parser paths",
+    "steps": [
+      "Remove IndexKey() and IndexKeySet() from runtime",
+      "Remove any remaining old @$ code paths from parser",
+      "Run all tests, verify pass",
+      "Commit"
+    ],
+    "passes": true
+  },
+  {
     "category": "e2e",
     "description": "semantic mutation tests — IndexSet, DynAccessSet, KeySetStr, Push, Pop, RemoveAt",
     "steps": [
