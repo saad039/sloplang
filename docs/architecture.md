@@ -34,6 +34,8 @@ sloplang/                          # project root
     │       ├── slop_value.go      # SlopValue struct, NewSlopValue, IsTruthy, StdoutWrite, FormatValue
     │       ├── ops.go             # All operations: arithmetic, comparison, logical, array ops
     │       └── io.go              # I/O: StdinRead, FileRead, FileWrite, FileAppend, Split, ToNum
+    ├── tests/
+    │   └── programs/              # Phase 8 real programs (.slop) + test harness
     └── examples/                  # Example .slop programs
 ```
 
@@ -267,12 +269,12 @@ Each test builds the CLI, substitutes size, runs the `.slop` program, reads `res
 | File | Domain | Tests |
 |------|--------|-------|
 | `semantic_mutation_e2e_test.go` | IndexSet, DynAccessSet, KeySetStr, Push, Pop, RemoveAt | 50 |
-| `semantic_equality_e2e_test.go` | Deep equality, cross-type, null, hashmap, ordered comparisons | 45 |
+| `semantic_equality_e2e_test.go` | Deep equality, cross-type, null, hashmap, ordered comparisons | 46 |
 | `semantic_format_e2e_test.go` | str(), \|> no newline, FormatValue after ops, hashmaps | 32 |
 | `semantic_boolean_e2e_test.go` | IsTruthy strictness, logical ops, true/false keywords | 41 |
 | `semantic_null_e2e_test.go` | Null succeeds/panics in every operator context | 36 |
 | `semantic_arithmetic_e2e_test.go` | Type safety, element-wise, div-by-zero, negate, precedence | 42 |
-| `semantic_array_ops_e2e_test.go` | Index, slice, concat, remove, contains, unique, length | 49 |
+| `semantic_array_ops_e2e_test.go` | Index, slice, concat, remove, contains, unique, length | 48 |
 | `semantic_hashmap_e2e_test.go` | Declaration, key access/set, ##/@@, dynamic access, functions | 28 |
 | `semantic_control_flow_e2e_test.go` | If/else, for-in, infinite loop, functions, scoping, combined | 32 |
 

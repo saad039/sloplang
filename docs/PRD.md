@@ -116,7 +116,7 @@ Returns `[1]` (truthy) or `[]` (falsy).
 
 ### Logical
 
-Operate on truthiness (`[]` = false, anything else = true).
+Strict truthiness: only `[1]` is truthy, only `[]` (empty array) is falsy. `[0]`, multi-element arrays, strings, floats, and null all **panic** in boolean context.
 
 | Op | Name |
 |----|------|
@@ -301,9 +301,10 @@ sloplang/
   pkg/parser/ast.go             -- AST node types
   pkg/parser/parser.go          -- Recursive descent parser
   pkg/codegen/codegen.go        -- AST -> Go source emitter
-  pkg/runtime/slop_value.go     -- SlopValue type + operations
-  pkg/runtime/builtins.go       -- Built-in functions (split, str, to_num)
-  pkg/runtime/io.go             -- File and stdio operations (unbuffered)
+  pkg/runtime/slop_value.go     -- SlopValue type, NewSlopValue, IsTruthy, FormatValue, Str
+  pkg/runtime/ops.go            -- All operations: arithmetic, comparison, logical, array, hashmap
+  pkg/runtime/io.go             -- I/O: StdinRead, FileRead, FileWrite, FileAppend, Split, ToNum
+  tests/programs/               -- Phase 8 real programs (.slop) + test harness
   examples/hello.slop           -- Example programs
   go.mod
 ```
