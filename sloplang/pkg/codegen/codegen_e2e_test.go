@@ -19,6 +19,47 @@ func projectRoot() string {
 	return filepath.Dir(filepath.Dir(filepath.Dir(filename)))
 }
 
+// loadRuntimeFiles reads the three runtime source files and returns their contents.
+func loadRuntimeFiles(t *testing.T) (string, string, string) {
+	t.Helper()
+	root := projectRoot()
+	rtDir := filepath.Join(root, "pkg", "runtime")
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(rtDir, name))
+		if err != nil {
+			t.Fatalf("read runtime file %s: %v", name, err)
+		}
+		return string(b)
+	}
+	return read("slop_value.go"), read("ops.go"), read("io.go")
+}
+
+// compileAndRun assembles user code with the runtime, writes a temp module, builds, and runs it.
+// Returns the binary path and tmpDir.
+func compileAndRun(t *testing.T, userCode []byte) (string, string) {
+	t.Helper()
+	sv, ops, io := loadRuntimeFiles(t)
+	assembled, err := AssembleWithRuntime(userCode, sv, ops, io)
+	if err != nil {
+		t.Fatalf("AssembleWithRuntime: %v", err)
+	}
+	tmpDir := t.TempDir()
+	goMod := "module sloprun\n\ngo 1.24\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), assembled, 0644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
+	buildCmd.Dir = tmpDir
+	buildOut, err := buildCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build failed: %v\n%s\n\nAssembled code:\n%s", err, string(buildOut), string(assembled))
+	}
+	return filepath.Join(tmpDir, "prog"), tmpDir
+}
+
 // runE2E transpiles source, compiles, runs, and returns stdout.
 func runE2E(t *testing.T, source string) string {
 	t.Helper()
@@ -31,45 +72,14 @@ func runE2E(t *testing.T, source string) string {
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	gen := New(modulePath)
+	gen := New()
 	output, err := gen.Generate(prog)
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
 
-	tmpDir := t.TempDir()
-	root := projectRoot()
-
-	goMod := fmt.Sprintf(`module test
-
-go 1.24
-
-require github.com/saad039/sloplang v0.0.0
-
-replace github.com/saad039/sloplang => %s
-`, root)
-
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644); err != nil {
-		t.Fatalf("write main.go: %v", err)
-	}
-
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	if tidyOut, err := tidyCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go mod tidy failed: %v\n%s", err, string(tidyOut))
-	}
-
-	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
-	buildCmd.Dir = tmpDir
-	buildOut, err := buildCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build failed: %v\n%s\n\nGenerated code:\n%s", err, string(buildOut), string(output))
-	}
-
-	runCmd := exec.Command(filepath.Join(tmpDir, "prog"))
+	progPath, tmpDir := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
 	runCmd.Dir = tmpDir
 	runOut, err := runCmd.CombinedOutput()
 	if err != nil {
@@ -91,45 +101,14 @@ func runE2EWithStdin(t *testing.T, source, stdinInput string) string {
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	gen := New(modulePath)
+	gen := New()
 	output, err := gen.Generate(prog)
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
 
-	tmpDir := t.TempDir()
-	root := projectRoot()
-
-	goMod := fmt.Sprintf(`module test
-
-go 1.24
-
-require github.com/saad039/sloplang v0.0.0
-
-replace github.com/saad039/sloplang => %s
-`, root)
-
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644); err != nil {
-		t.Fatalf("write main.go: %v", err)
-	}
-
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	if tidyOut, err := tidyCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go mod tidy failed: %v\n%s", err, string(tidyOut))
-	}
-
-	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
-	buildCmd.Dir = tmpDir
-	buildOut, err := buildCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build failed: %v\n%s\n\nGenerated code:\n%s", err, string(buildOut), string(output))
-	}
-
-	runCmd := exec.Command(filepath.Join(tmpDir, "prog"))
+	progPath, tmpDir := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
 	runCmd.Dir = tmpDir
 	runCmd.Stdin = strings.NewReader(stdinInput)
 	runOut, err := runCmd.CombinedOutput()
@@ -1447,45 +1426,14 @@ func runE2EExpectPanic(t *testing.T, source string) {
 		t.Fatalf("parse errors: %v", errs)
 	}
 
-	gen := New(modulePath)
+	gen := New()
 	output, err := gen.Generate(prog)
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
 
-	tmpDir := t.TempDir()
-	root := projectRoot()
-
-	goMod := fmt.Sprintf(`module test
-
-go 1.24
-
-require github.com/saad039/sloplang v0.0.0
-
-replace github.com/saad039/sloplang => %s
-`, root)
-
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644); err != nil {
-		t.Fatalf("write main.go: %v", err)
-	}
-
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	if tidyOut, err := tidyCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go mod tidy failed: %v\n%s", err, string(tidyOut))
-	}
-
-	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
-	buildCmd.Dir = tmpDir
-	buildOut, err := buildCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build failed: %v\n%s\n\nGenerated code:\n%s", err, string(buildOut), string(output))
-	}
-
-	runCmd := exec.Command(filepath.Join(tmpDir, "prog"))
+	progPath, _ := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
 	err = runCmd.Run()
 	if err == nil {
 		t.Fatal("expected program to panic/exit non-zero, but it succeeded")

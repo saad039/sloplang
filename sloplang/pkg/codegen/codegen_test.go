@@ -8,8 +8,6 @@ import (
 	"github.com/saad039/sloplang/pkg/parser"
 )
 
-const modulePath = "github.com/saad039/sloplang"
-
 func generate(input string) (string, error) {
 	l := lexer.New(input)
 	tokens := l.Tokenize()
@@ -18,7 +16,7 @@ func generate(input string) (string, error) {
 	if len(errs) > 0 {
 		return "", nil
 	}
-	gen := New(modulePath)
+	gen := New()
 	output, err := gen.Generate(prog)
 	if err != nil {
 		return "", err
@@ -39,8 +37,8 @@ func TestCodegen_Assignment(t *testing.T) {
 	if !strings.Contains(out, "x =") {
 		t.Fatalf("expected 'x =' assignment, got:\n%s", out)
 	}
-	if !strings.Contains(out, "sloprt.NewSlopValue") {
-		t.Fatalf("expected sloprt.NewSlopValue call, got:\n%s", out)
+	if !strings.Contains(out, "NewSlopValue") {
+		t.Fatalf("expected NewSlopValue call, got:\n%s", out)
 	}
 	if !strings.Contains(out, "int64(1)") {
 		t.Fatalf("expected int64(1), got:\n%s", out)
@@ -52,8 +50,8 @@ func TestCodegen_StdoutWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.StdoutWrite") {
-		t.Fatalf("expected sloprt.StdoutWrite, got:\n%s", out)
+	if !strings.Contains(out, "StdoutWrite") {
+		t.Fatalf("expected StdoutWrite, got:\n%s", out)
 	}
 	if !strings.Contains(out, `"hello world"`) {
 		t.Fatalf("expected string literal, got:\n%s", out)
@@ -68,8 +66,8 @@ func TestCodegen_FullProgram(t *testing.T) {
 	if !strings.Contains(out, "package main") {
 		t.Fatalf("expected 'package main', got:\n%s", out)
 	}
-	if !strings.Contains(out, `sloprt "github.com/saad039/sloplang/pkg/runtime"`) {
-		t.Fatalf("expected runtime import, got:\n%s", out)
+	if !strings.Contains(out, "package main") {
+		t.Fatalf("expected package main (second check), got:\n%s", out)
 	}
 	if !strings.Contains(out, "func main()") {
 		t.Fatalf("expected func main(), got:\n%s", out)
@@ -81,8 +79,8 @@ func TestCodegen_EmptyArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.NewSlopValue()") {
-		t.Fatalf("expected sloprt.NewSlopValue() with no args, got:\n%s", out)
+	if !strings.Contains(out, "NewSlopValue()") {
+		t.Fatalf("expected NewSlopValue() with no args, got:\n%s", out)
 	}
 }
 
@@ -109,8 +107,8 @@ func TestCodegen_StdoutWriteIdent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.StdoutWrite(x)") {
-		t.Fatalf("expected sloprt.StdoutWrite(x), got:\n%s", out)
+	if !strings.Contains(out, "StdoutWrite(x)") {
+		t.Fatalf("expected StdoutWrite(x), got:\n%s", out)
 	}
 }
 
@@ -119,20 +117,20 @@ func TestCodegen_BinaryAllOps(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{`x = [1] + [2]`, "sloprt.Add("},
-		{`x = [1] - [2]`, "sloprt.Sub("},
-		{`x = [1] * [2]`, "sloprt.Mul("},
-		{`x = [1] / [2]`, "sloprt.Div("},
-		{`x = [1] % [2]`, "sloprt.Mod("},
-		{`x = [1] ** [2]`, "sloprt.Pow("},
-		{`x = [1] == [2]`, "sloprt.Eq("},
-		{`x = [1] != [2]`, "sloprt.Neq("},
-		{`x = [1] < [2]`, "sloprt.Lt("},
-		{`x = [1] > [2]`, "sloprt.Gt("},
-		{`x = [1] <= [2]`, "sloprt.Lte("},
-		{`x = [1] >= [2]`, "sloprt.Gte("},
-		{`x = [1] && [2]`, "sloprt.And("},
-		{`x = [1] || [2]`, "sloprt.Or("},
+		{`x = [1] + [2]`, "Add("},
+		{`x = [1] - [2]`, "Sub("},
+		{`x = [1] * [2]`, "Mul("},
+		{`x = [1] / [2]`, "Div("},
+		{`x = [1] % [2]`, "Mod("},
+		{`x = [1] ** [2]`, "Pow("},
+		{`x = [1] == [2]`, "Eq("},
+		{`x = [1] != [2]`, "Neq("},
+		{`x = [1] < [2]`, "Lt("},
+		{`x = [1] > [2]`, "Gt("},
+		{`x = [1] <= [2]`, "Lte("},
+		{`x = [1] >= [2]`, "Gte("},
+		{`x = [1] && [2]`, "And("},
+		{`x = [1] || [2]`, "Or("},
 	}
 	for _, tc := range tests {
 		out, err := generate(tc.input)
@@ -150,8 +148,8 @@ func TestCodegen_UnaryNegate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Negate(") {
-		t.Fatalf("expected sloprt.Negate, got:\n%s", out)
+	if !strings.Contains(out, "Negate(") {
+		t.Fatalf("expected Negate, got:\n%s", out)
 	}
 }
 
@@ -160,8 +158,8 @@ func TestCodegen_UnaryNot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Not(") {
-		t.Fatalf("expected sloprt.Not, got:\n%s", out)
+	if !strings.Contains(out, "Not(") {
+		t.Fatalf("expected Not, got:\n%s", out)
 	}
 }
 
@@ -170,8 +168,8 @@ func TestCodegen_CallStr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Str(") {
-		t.Fatalf("expected sloprt.Str, got:\n%s", out)
+	if !strings.Contains(out, "Str(") {
+		t.Fatalf("expected Str, got:\n%s", out)
 	}
 }
 
@@ -183,8 +181,8 @@ func TestCodegen_FnDecl(t *testing.T) {
 	if !strings.Contains(out, "func add(") {
 		t.Fatalf("expected func add(, got:\n%s", out)
 	}
-	if !strings.Contains(out, "*sloprt.SlopValue") {
-		t.Fatalf("expected *sloprt.SlopValue param type, got:\n%s", out)
+	if !strings.Contains(out, "*SlopValue") {
+		t.Fatalf("expected *SlopValue param type, got:\n%s", out)
 	}
 	if !strings.Contains(out, "return") {
 		t.Fatalf("expected return, got:\n%s", out)
@@ -216,8 +214,8 @@ func TestCodegen_ForIn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Iterate(") {
-		t.Fatalf("expected sloprt.Iterate, got:\n%s", out)
+	if !strings.Contains(out, "Iterate(") {
+		t.Fatalf("expected Iterate, got:\n%s", out)
 	}
 	if !strings.Contains(out, "range") {
 		t.Fatalf("expected range, got:\n%s", out)
@@ -229,8 +227,8 @@ func TestCodegen_ReturnStmt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "return sloprt.NewSlopValue(") {
-		t.Fatalf("expected return sloprt.NewSlopValue, got:\n%s", out)
+	if !strings.Contains(out, "return NewSlopValue(") {
+		t.Fatalf("expected return NewSlopValue, got:\n%s", out)
 	}
 }
 
@@ -239,8 +237,8 @@ func TestCodegen_BareReturn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "return sloprt.NewSlopValue()") {
-		t.Fatalf("expected return sloprt.NewSlopValue(), got:\n%s", out)
+	if !strings.Contains(out, "return NewSlopValue()") {
+		t.Fatalf("expected return NewSlopValue(), got:\n%s", out)
 	}
 }
 
@@ -262,8 +260,8 @@ func TestCodegen_MultiAssign(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.UnpackTwo(") {
-		t.Fatalf("expected sloprt.UnpackTwo, got:\n%s", out)
+	if !strings.Contains(out, "UnpackTwo(") {
+		t.Fatalf("expected UnpackTwo, got:\n%s", out)
 	}
 }
 
@@ -299,8 +297,8 @@ func TestCodegen_IndexExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Index(") {
-		t.Fatalf("expected sloprt.Index, got:\n%s", out)
+	if !strings.Contains(out, "Index(") {
+		t.Fatalf("expected Index, got:\n%s", out)
 	}
 }
 
@@ -309,8 +307,8 @@ func TestCodegen_IndexSetStmt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.IndexSet(") {
-		t.Fatalf("expected sloprt.IndexSet, got:\n%s", out)
+	if !strings.Contains(out, "IndexSet(") {
+		t.Fatalf("expected IndexSet, got:\n%s", out)
 	}
 }
 
@@ -319,8 +317,8 @@ func TestCodegen_PushStmt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Push(") {
-		t.Fatalf("expected sloprt.Push, got:\n%s", out)
+	if !strings.Contains(out, "Push(") {
+		t.Fatalf("expected Push, got:\n%s", out)
 	}
 }
 
@@ -329,8 +327,8 @@ func TestCodegen_PopExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Pop(") {
-		t.Fatalf("expected sloprt.Pop, got:\n%s", out)
+	if !strings.Contains(out, "Pop(") {
+		t.Fatalf("expected Pop, got:\n%s", out)
 	}
 }
 
@@ -339,8 +337,8 @@ func TestCodegen_SliceExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Slice(") {
-		t.Fatalf("expected sloprt.Slice, got:\n%s", out)
+	if !strings.Contains(out, "Slice(") {
+		t.Fatalf("expected Slice, got:\n%s", out)
 	}
 }
 
@@ -349,8 +347,8 @@ func TestCodegen_ConcatExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Concat(") {
-		t.Fatalf("expected sloprt.Concat, got:\n%s", out)
+	if !strings.Contains(out, "Concat(") {
+		t.Fatalf("expected Concat, got:\n%s", out)
 	}
 }
 
@@ -359,8 +357,8 @@ func TestCodegen_RemoveExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Remove(") {
-		t.Fatalf("expected sloprt.Remove, got:\n%s", out)
+	if !strings.Contains(out, "Remove(") {
+		t.Fatalf("expected Remove, got:\n%s", out)
 	}
 }
 
@@ -369,8 +367,8 @@ func TestCodegen_ContainsExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Contains(") {
-		t.Fatalf("expected sloprt.Contains, got:\n%s", out)
+	if !strings.Contains(out, "Contains(") {
+		t.Fatalf("expected Contains, got:\n%s", out)
 	}
 }
 
@@ -379,8 +377,8 @@ func TestCodegen_RemoveAtExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.RemoveAt(") {
-		t.Fatalf("expected sloprt.RemoveAt, got:\n%s", out)
+	if !strings.Contains(out, "RemoveAt(") {
+		t.Fatalf("expected RemoveAt, got:\n%s", out)
 	}
 }
 
@@ -389,8 +387,8 @@ func TestCodegen_LengthExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Length(") {
-		t.Fatalf("expected sloprt.Length, got:\n%s", out)
+	if !strings.Contains(out, "Length(") {
+		t.Fatalf("expected Length, got:\n%s", out)
 	}
 }
 
@@ -399,8 +397,8 @@ func TestCodegen_UniqueExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.Unique(") {
-		t.Fatalf("expected sloprt.Unique, got:\n%s", out)
+	if !strings.Contains(out, "Unique(") {
+		t.Fatalf("expected Unique, got:\n%s", out)
 	}
 }
 
@@ -423,8 +421,8 @@ func TestCodegen_HashDeclStmt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.MapFromKeysValues(") {
-		t.Fatalf("expected sloprt.MapFromKeysValues, got:\n%s", out)
+	if !strings.Contains(out, "MapFromKeysValues(") {
+		t.Fatalf("expected MapFromKeysValues, got:\n%s", out)
 	}
 	if !strings.Contains(out, `[]string{"name", "age"}`) {
 		t.Fatalf("expected keys literal, got:\n%s", out)
@@ -436,8 +434,8 @@ func TestCodegen_HashDeclStmt_EmptyKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.MapFromKeysValues(") {
-		t.Fatalf("expected sloprt.MapFromKeysValues, got:\n%s", out)
+	if !strings.Contains(out, "MapFromKeysValues(") {
+		t.Fatalf("expected MapFromKeysValues, got:\n%s", out)
 	}
 	if !strings.Contains(out, "[]string{}") {
 		t.Fatalf("expected empty keys literal, got:\n%s", out)
@@ -449,8 +447,8 @@ func TestCodegen_KeyAccessExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.IndexKeyStr(") {
-		t.Fatalf("expected sloprt.IndexKeyStr, got:\n%s", out)
+	if !strings.Contains(out, "IndexKeyStr(") {
+		t.Fatalf("expected IndexKeyStr, got:\n%s", out)
 	}
 	if !strings.Contains(out, `"name"`) {
 		t.Fatalf("expected string key, got:\n%s", out)
@@ -462,8 +460,8 @@ func TestCodegen_DynAccessExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.DynAccess(") {
-		t.Fatalf("expected sloprt.DynAccess, got:\n%s", out)
+	if !strings.Contains(out, "DynAccess(") {
+		t.Fatalf("expected DynAccess, got:\n%s", out)
 	}
 }
 
@@ -472,8 +470,8 @@ func TestCodegen_KeySetStmt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.IndexKeySetStr(") {
-		t.Fatalf("expected sloprt.IndexKeySetStr, got:\n%s", out)
+	if !strings.Contains(out, "IndexKeySetStr(") {
+		t.Fatalf("expected IndexKeySetStr, got:\n%s", out)
 	}
 }
 
@@ -482,8 +480,8 @@ func TestCodegen_DynAccessSetStmt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.DynAccessSet(") {
-		t.Fatalf("expected sloprt.DynAccessSet, got:\n%s", out)
+	if !strings.Contains(out, "DynAccessSet(") {
+		t.Fatalf("expected DynAccessSet, got:\n%s", out)
 	}
 }
 
@@ -492,8 +490,8 @@ func TestCodegen_MapKeysExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.MapKeys(") {
-		t.Fatalf("expected sloprt.MapKeys, got:\n%s", out)
+	if !strings.Contains(out, "MapKeys(") {
+		t.Fatalf("expected MapKeys, got:\n%s", out)
 	}
 }
 
@@ -502,8 +500,8 @@ func TestCodegen_MapValuesExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.MapValues(") {
-		t.Fatalf("expected sloprt.MapValues, got:\n%s", out)
+	if !strings.Contains(out, "MapValues(") {
+		t.Fatalf("expected MapValues, got:\n%s", out)
 	}
 }
 
@@ -516,7 +514,7 @@ func TestCodegen_NullLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "sloprt.SlopNull{}") {
-		t.Fatalf("expected sloprt.SlopNull{}, got:\n%s", out)
+	if !strings.Contains(out, "SlopNull{}") {
+		t.Fatalf("expected SlopNull{}, got:\n%s", out)
 	}
 }

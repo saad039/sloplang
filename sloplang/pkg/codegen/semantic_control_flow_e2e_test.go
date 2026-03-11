@@ -1,7 +1,6 @@
 package codegen
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -285,23 +284,19 @@ noop()`
 	if len(errs) > 0 {
 		t.Fatalf("parse errors: %v", errs)
 	}
-	gen := New(modulePath)
+	gen := New()
 	output, err := gen.Generate(prog)
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
+	sv, ops, io := loadRuntimeFiles(t)
+	assembled, err := AssembleWithRuntime(output, sv, ops, io)
+	if err != nil {
+		t.Fatalf("AssembleWithRuntime: %v", err)
+	}
 	tmpDir := t.TempDir()
-	root := projectRoot()
-	goMod := fmt.Sprintf(`module test
-go 1.24
-require github.com/saad039/sloplang v0.0.0
-replace github.com/saad039/sloplang => %s
-`, root)
-	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644)
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	tidyCmd.CombinedOutput()
+	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module sloprun\n\ngo 1.24\n"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "main.go"), assembled, 0644)
 	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
 	buildCmd.Dir = tmpDir
 	_, buildErr := buildCmd.CombinedOutput()
@@ -348,23 +343,19 @@ func TestSem_Flow_Var_LoopVar(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("parse errors: %v", errs)
 	}
-	gen := New(modulePath)
+	gen := New()
 	output, err := gen.Generate(prog)
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
+	sv, ops, io := loadRuntimeFiles(t)
+	assembled, err := AssembleWithRuntime(output, sv, ops, io)
+	if err != nil {
+		t.Fatalf("AssembleWithRuntime: %v", err)
+	}
 	tmpDir := t.TempDir()
-	root := projectRoot()
-	goMod := fmt.Sprintf(`module test
-go 1.24
-require github.com/saad039/sloplang v0.0.0
-replace github.com/saad039/sloplang => %s
-`, root)
-	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644)
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	tidyCmd.CombinedOutput()
+	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module sloprun\n\ngo 1.24\n"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "main.go"), assembled, 0644)
 	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
 	buildCmd.Dir = tmpDir
 	_, buildErr := buildCmd.CombinedOutput()

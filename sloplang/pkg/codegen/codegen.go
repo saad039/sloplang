@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/format"
 	"go/token"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -14,14 +15,13 @@ import (
 
 // Generator produces Go source code from a sloplang AST.
 type Generator struct {
-	modulePath string
-	declared   map[string]bool // tracks variables that have been declared
-	globals    map[string]bool // top-level variable names hoisted to package level
+	declared map[string]bool // tracks variables that have been declared
+	globals  map[string]bool // top-level variable names hoisted to package level
 }
 
-// New creates a new Generator with the given Go module path.
-func New(modulePath string) *Generator {
-	return &Generator{modulePath: modulePath, declared: make(map[string]bool)}
+// New creates a new Generator.
+func New() *Generator {
+	return &Generator{declared: make(map[string]bool)}
 }
 
 // Generate takes a sloplang AST and returns formatted Go source code.
@@ -76,20 +76,7 @@ func (g *Generator) Generate(program *parser.Program) ([]byte, error) {
 		Body: &ast.BlockStmt{List: mainStmts},
 	}
 
-	importDecl := &ast.GenDecl{
-		Tok: token.IMPORT,
-		Specs: []ast.Spec{
-			&ast.ImportSpec{
-				Name: ast.NewIdent("sloprt"),
-				Path: &ast.BasicLit{
-					Kind:  token.STRING,
-					Value: strconv.Quote(g.modulePath + "/pkg/runtime"),
-				},
-			},
-		},
-	}
-
-	decls := []ast.Decl{importDecl}
+	decls := []ast.Decl{}
 	decls = append(decls, varDecls...)
 	decls = append(decls, fnDecls...)
 	decls = append(decls, mainFunc)
@@ -105,6 +92,89 @@ func (g *Generator) Generate(program *parser.Program) ([]byte, error) {
 		return nil, fmt.Errorf("format: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// AssembleWithRuntime prepends the runtime source files to the generated user code,
+// producing a single self-contained package main file ready for go build.
+// runtimeFiles are the raw .go source file contents of pkg/runtime.
+func AssembleWithRuntime(userCode []byte, runtimeFiles ...string) ([]byte, error) {
+	importSet := make(map[string]bool)
+	var runtimeBodies []string
+
+	for _, src := range runtimeFiles {
+		lines := strings.Split(src, "\n")
+		var body strings.Builder
+		i := 0
+		for i < len(lines) {
+			line := lines[i]
+			// Skip package declaration line
+			if strings.HasPrefix(strings.TrimSpace(line), "package ") {
+				i++
+				continue
+			}
+			// Detect and parse block import
+			if strings.TrimSpace(line) == "import (" {
+				i++ // consume the "import (" line
+				for i < len(lines) {
+					inner := strings.TrimSpace(lines[i])
+					if inner == ")" {
+						i++ // consume the closing ")"
+						break
+					}
+					// Extract quoted import path
+					if len(inner) >= 2 && inner[0] == '"' {
+						path := inner[1 : len(inner)-1]
+						importSet[path] = true
+					}
+					i++
+				}
+				continue
+			}
+			body.WriteString(line)
+			body.WriteByte('\n')
+			i++
+		}
+		runtimeBodies = append(runtimeBodies, body.String())
+	}
+
+	// Sort import paths alphabetically
+	imports := make([]string, 0, len(importSet))
+	for path := range importSet {
+		imports = append(imports, path)
+	}
+	sort.Strings(imports)
+
+	// Build the import block
+	var importBlock strings.Builder
+	importBlock.WriteString("import (\n")
+	for _, path := range imports {
+		importBlock.WriteString("\t")
+		importBlock.WriteString(strconv.Quote(path))
+		importBlock.WriteString("\n")
+	}
+	importBlock.WriteString(")\n")
+
+	// Strip "package main\n\n" prefix from userCode
+	userStr := string(userCode)
+	userStr = strings.TrimPrefix(userStr, "package main\n\n")
+
+	// Assemble final source
+	var out strings.Builder
+	out.WriteString("package main\n\n")
+	out.WriteString(importBlock.String())
+	out.WriteString("\n")
+	for _, body := range runtimeBodies {
+		out.WriteString(body)
+	}
+	out.WriteString("\n")
+	out.WriteString(userStr)
+
+	assembled := []byte(out.String())
+	formatted, err := format.Source(assembled)
+	if err != nil {
+		return assembled, fmt.Errorf("format failed: %w\n--- source ---\n%s", err, string(assembled))
+	}
+	return formatted, nil
 }
 
 func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
@@ -132,7 +202,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 	case *parser.StdoutWriteStmt:
 		return []ast.Stmt{
 			&ast.ExprStmt{
-				X: callSloprt("StdoutWrite", g.lowerExpr(s.Value)),
+				X: callRuntime("StdoutWrite", g.lowerExpr(s.Value)),
 			},
 		}
 	case *parser.IfStmt:
@@ -149,11 +219,11 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return g.lowerMultiAssign(s)
 	case *parser.PushStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("Push", g.lowerExpr(s.Object), g.lowerExpr(s.Value))},
+			&ast.ExprStmt{X: callRuntime("Push", g.lowerExpr(s.Object), g.lowerExpr(s.Value))},
 		}
 	case *parser.IndexSetStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("IndexSet", g.lowerExpr(s.Object), g.lowerExpr(s.Index), g.lowerExpr(s.Value))},
+			&ast.ExprStmt{X: callRuntime("IndexSet", g.lowerExpr(s.Object), g.lowerExpr(s.Index), g.lowerExpr(s.Value))},
 		}
 	case *parser.HashDeclStmt:
 		keyElts := make([]ast.Expr, len(s.Keys))
@@ -172,7 +242,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		assign := &ast.AssignStmt{
 			Lhs: []ast.Expr{ast.NewIdent(s.Name)},
 			Tok: tok,
-			Rhs: []ast.Expr{callSloprt("MapFromKeysValues", keysLit, g.lowerExpr(s.Value))},
+			Rhs: []ast.Expr{callRuntime("MapFromKeysValues", keysLit, g.lowerExpr(s.Value))},
 		}
 		if tok == token.DEFINE {
 			suppress := &ast.AssignStmt{
@@ -185,19 +255,19 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return []ast.Stmt{assign}
 	case *parser.KeySetStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("IndexKeySetStr", g.lowerExpr(s.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(s.Key)}, g.lowerExpr(s.Value))},
+			&ast.ExprStmt{X: callRuntime("IndexKeySetStr", g.lowerExpr(s.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(s.Key)}, g.lowerExpr(s.Value))},
 		}
 	case *parser.DynAccessSetStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("DynAccessSet", g.lowerExpr(s.Object), g.lowerExpr(s.KeyVar), g.lowerExpr(s.Value))},
+			&ast.ExprStmt{X: callRuntime("DynAccessSet", g.lowerExpr(s.Object), g.lowerExpr(s.KeyVar), g.lowerExpr(s.Value))},
 		}
 	case *parser.FileWriteStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("FileWrite", g.lowerExpr(s.Path), g.lowerExpr(s.Data))},
+			&ast.ExprStmt{X: callRuntime("FileWrite", g.lowerExpr(s.Path), g.lowerExpr(s.Data))},
 		}
 	case *parser.FileAppendStmt:
 		return []ast.Stmt{
-			&ast.ExprStmt{X: callSloprt("FileAppend", g.lowerExpr(s.Path), g.lowerExpr(s.Data))},
+			&ast.ExprStmt{X: callRuntime("FileAppend", g.lowerExpr(s.Path), g.lowerExpr(s.Data))},
 		}
 	case *parser.ExprStmt:
 		return []ast.Stmt{
@@ -209,7 +279,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 }
 
 func (g *Generator) lowerFnDecl(fd *parser.FnDeclStmt) *ast.FuncDecl {
-	// Build parameter list: each param is *sloprt.SlopValue
+	// Build parameter list: each param is *SlopValue
 	params := make([]*ast.Field, len(fd.Params))
 	for i, p := range fd.Params {
 		params[i] = &ast.Field{
@@ -295,7 +365,7 @@ func (g *Generator) lowerForInStmt(s *parser.ForInStmt) *ast.RangeStmt {
 		Key:   ast.NewIdent("_"),
 		Value: ast.NewIdent(s.VarName),
 		Tok:   token.DEFINE,
-		X:     callSloprt("Iterate", g.lowerExpr(s.Iterable)),
+		X:     callRuntime("Iterate", g.lowerExpr(s.Iterable)),
 		Body:  &ast.BlockStmt{List: bodyStmts},
 	}
 }
@@ -314,7 +384,7 @@ func (g *Generator) lowerReturnStmt(s *parser.ReturnStmt) []ast.Stmt {
 	if s.Value == nil {
 		return []ast.Stmt{
 			&ast.ReturnStmt{
-				Results: []ast.Expr{callSloprt("NewSlopValue")},
+				Results: []ast.Expr{callRuntime("NewSlopValue")},
 			},
 		}
 	}
@@ -345,7 +415,7 @@ func (g *Generator) lowerMultiAssign(s *parser.MultiAssignStmt) []ast.Stmt {
 	if g.isDualReturn(s.Value) {
 		rhs = []ast.Expr{g.lowerExpr(s.Value)}
 	} else {
-		rhs = []ast.Expr{callSloprt("UnpackTwo", g.lowerExpr(s.Value))}
+		rhs = []ast.Expr{callRuntime("UnpackTwo", g.lowerExpr(s.Value))}
 	}
 
 	// Use = if all names are already declared, := otherwise.
@@ -386,10 +456,7 @@ func (g *Generator) lowerMultiAssign(s *parser.MultiAssignStmt) []ast.Stmt {
 
 func slopValuePtrType() *ast.StarExpr {
 	return &ast.StarExpr{
-		X: &ast.SelectorExpr{
-			X:   ast.NewIdent("sloprt"),
-			Sel: ast.NewIdent("SlopValue"),
-		},
+		X: ast.NewIdent("SlopValue"),
 	}
 }
 
@@ -400,30 +467,27 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		for i, elem := range e.Elements {
 			args[i] = g.lowerRawValue(elem)
 		}
-		return callSloprt("NewSlopValue", args...)
+		return callRuntime("NewSlopValue", args...)
 	case *parser.NumberLiteral:
-		return callSloprt("NewSlopValue", g.lowerRawValue(e))
+		return callRuntime("NewSlopValue", g.lowerRawValue(e))
 	case *parser.StringLiteral:
-		return callSloprt("NewSlopValue", g.lowerRawValue(e))
+		return callRuntime("NewSlopValue", g.lowerRawValue(e))
 	case *parser.NullLiteral:
-		return callSloprt("NewSlopValue", &ast.CompositeLit{
-			Type: &ast.SelectorExpr{
-				X:   ast.NewIdent("sloprt"),
-				Sel: ast.NewIdent("SlopNull"),
-			},
+		return callRuntime("NewSlopValue", &ast.CompositeLit{
+			Type: ast.NewIdent("SlopNull"),
 		})
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
 	case *parser.IndexExpr:
-		return callSloprt("Index", g.lowerExpr(e.Object), g.lowerExpr(e.Index))
+		return callRuntime("Index", g.lowerExpr(e.Object), g.lowerExpr(e.Index))
 	case *parser.KeyAccessExpr:
-		return callSloprt("IndexKeyStr", g.lowerExpr(e.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(e.Key)})
+		return callRuntime("IndexKeyStr", g.lowerExpr(e.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(e.Key)})
 	case *parser.DynAccessExpr:
-		return callSloprt("DynAccess", g.lowerExpr(e.Object), g.lowerExpr(e.KeyVar))
+		return callRuntime("DynAccess", g.lowerExpr(e.Object), g.lowerExpr(e.KeyVar))
 	case *parser.PopExpr:
-		return callSloprt("Pop", g.lowerExpr(e.Object))
+		return callRuntime("Pop", g.lowerExpr(e.Object))
 	case *parser.SliceExpr:
-		return callSloprt("Slice", g.lowerExpr(e.Object), g.lowerExpr(e.Low), g.lowerExpr(e.High))
+		return callRuntime("Slice", g.lowerExpr(e.Object), g.lowerExpr(e.Low), g.lowerExpr(e.High))
 	case *parser.BinaryExpr:
 		opFunc := map[string]string{
 			"+": "Add", "-": "Sub", "*": "Mul", "/": "Div", "%": "Mod", "**": "Pow",
@@ -435,26 +499,26 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		if !ok {
 			return ast.NewIdent("nil")
 		}
-		return callSloprt(fname, g.lowerExpr(e.Left), g.lowerExpr(e.Right))
+		return callRuntime(fname, g.lowerExpr(e.Left), g.lowerExpr(e.Right))
 	case *parser.UnaryExpr:
 		switch e.Op {
 		case "-":
-			return callSloprt("Negate", g.lowerExpr(e.Operand))
+			return callRuntime("Negate", g.lowerExpr(e.Operand))
 		case "#":
-			return callSloprt("Length", g.lowerExpr(e.Operand))
+			return callRuntime("Length", g.lowerExpr(e.Operand))
 		case "~":
-			return callSloprt("Unique", g.lowerExpr(e.Operand))
+			return callRuntime("Unique", g.lowerExpr(e.Operand))
 		case "##":
-			return callSloprt("MapKeys", g.lowerExpr(e.Operand))
+			return callRuntime("MapKeys", g.lowerExpr(e.Operand))
 		case "@@":
-			return callSloprt("MapValues", g.lowerExpr(e.Operand))
+			return callRuntime("MapValues", g.lowerExpr(e.Operand))
 		default:
-			return callSloprt("Not", g.lowerExpr(e.Operand))
+			return callRuntime("Not", g.lowerExpr(e.Operand))
 		}
 	case *parser.StdinReadExpr:
-		return callSloprt("StdinRead")
+		return callRuntime("StdinRead")
 	case *parser.FileReadExpr:
-		return callSloprt("FileRead", g.lowerExpr(e.Path))
+		return callRuntime("FileRead", g.lowerExpr(e.Path))
 	case *parser.CallExpr:
 		args := make([]ast.Expr, len(e.Args))
 		for i, arg := range e.Args {
@@ -462,7 +526,7 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		}
 		builtins := map[string]string{"str": "Str", "split": "Split", "to_num": "ToNum"}
 		if fname, ok := builtins[e.Name]; ok {
-			return callSloprt(fname, args...)
+			return callRuntime(fname, args...)
 		}
 		// User-defined function call
 		return &ast.CallExpr{
@@ -491,13 +555,10 @@ func (g *Generator) lowerRawValue(expr parser.Expr) ast.Expr {
 		for i, elem := range e.Elements {
 			args[i] = g.lowerRawValue(elem)
 		}
-		return callSloprt("NewSlopValue", args...)
+		return callRuntime("NewSlopValue", args...)
 	case *parser.NullLiteral:
 		return &ast.CompositeLit{
-			Type: &ast.SelectorExpr{
-				X:   ast.NewIdent("sloprt"),
-				Sel: ast.NewIdent("SlopNull"),
-			},
+			Type: ast.NewIdent("SlopNull"),
 		}
 	case *parser.Identifier:
 		return ast.NewIdent(e.Name)
@@ -505,7 +566,7 @@ func (g *Generator) lowerRawValue(expr parser.Expr) ast.Expr {
 		return g.lowerExpr(e)
 	case *parser.UnaryExpr:
 		// Negate on a number literal: emit raw negated value (e.g., int64(-1))
-		// instead of sloprt.Negate() which returns *SlopValue and causes nesting.
+		// instead of Negate() which returns *SlopValue and causes nesting.
 		if e.Op == "-" {
 			if nl, ok := e.Operand.(*parser.NumberLiteral); ok {
 				return g.lowerNumberRaw(&parser.NumberLiteral{
@@ -543,12 +604,11 @@ func typeCast(typeName, value string) *ast.CallExpr {
 	}
 }
 
-func callSloprt(funcName string, args ...ast.Expr) *ast.CallExpr {
+// callRuntime emits a plain (unqualified) function call to a runtime function.
+// Since we assemble runtime source directly into package main, no selector prefix is needed.
+func callRuntime(funcName string, args ...ast.Expr) *ast.CallExpr {
 	return &ast.CallExpr{
-		Fun: &ast.SelectorExpr{
-			X:   ast.NewIdent("sloprt"),
-			Sel: ast.NewIdent(funcName),
-		},
+		Fun:  ast.NewIdent(funcName),
 		Args: args,
 	}
 }

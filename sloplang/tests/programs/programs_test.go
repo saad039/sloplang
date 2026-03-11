@@ -24,7 +24,7 @@ func buildSlopCLI(t *testing.T) string {
 	t.Helper()
 	root := projectRoot()
 	binPath := filepath.Join(t.TempDir(), "slop")
-	cmd := exec.Command("go", "build", "-o", binPath, "./cmd/slop/...")
+	cmd := exec.Command("go", "build", "-o", binPath, ".")
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build slop CLI: %v\n%s", err, out)
@@ -41,7 +41,7 @@ func runSlopProgram(t *testing.T, slopBin, source string) string {
 	}
 	cmd := exec.Command(slopBin, srcPath)
 	cmd.Dir = tmpDir
-	cmd.Env = append(os.Environ(), "SLOP_MODULE_ROOT="+projectRoot())
+	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("slop run failed: %v\n%s", err, string(out))
