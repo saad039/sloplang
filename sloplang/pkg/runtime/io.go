@@ -82,6 +82,19 @@ func Split(sv, sep *SlopValue) *SlopValue {
 	return &SlopValue{Elements: elems}
 }
 
+// Exit terminates the program with the given exit code.
+// The argument must be a single-element integer array.
+func Exit(sv *SlopValue) {
+	if len(sv.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: exit() requires single-element int array, got %d elements", len(sv.Elements)))
+	}
+	code, ok := sv.Elements[0].(int64)
+	if !ok {
+		panic(fmt.Sprintf("sloplang: exit() requires int argument, got %T", sv.Elements[0]))
+	}
+	os.Exit(int(code))
+}
+
 // ToNum converts a string to a number.
 // Returns (value, err) where err is [0] on success, [1] on failure.
 // Tries int64 first, then float64.

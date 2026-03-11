@@ -524,7 +524,7 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		for i, arg := range e.Args {
 			args[i] = g.lowerExpr(arg)
 		}
-		builtins := map[string]string{"str": "Str", "split": "Split", "to_num": "ToNum"}
+		builtins := map[string]string{"str": "Str", "split": "Split", "to_num": "ToNum", "exit": "Exit"}
 		if fname, ok := builtins[e.Name]; ok {
 			return callRuntime(fname, args...)
 		}

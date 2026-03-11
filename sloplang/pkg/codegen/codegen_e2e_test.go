@@ -4319,3 +4319,76 @@ data, err = <. "config.txt"
 		t.Fatalf("expected %q, got %q", "localhost:8080", got)
 	}
 }
+
+// --- exit() builtin ---
+
+func runE2EExpectExitCode(t *testing.T, source string, wantCode int) {
+	t.Helper()
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	gen := New()
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	progPath, _ := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
+	err = runCmd.Run()
+	if wantCode == 0 {
+		if err != nil {
+			t.Fatalf("expected exit 0, got: %v", err)
+		}
+		return
+	}
+	if err == nil {
+		t.Fatalf("expected exit %d, but program succeeded", wantCode)
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("expected ExitError, got %T: %v", err, err)
+	}
+	if exitErr.ExitCode() != wantCode {
+		t.Fatalf("expected exit code %d, got %d", wantCode, exitErr.ExitCode())
+	}
+}
+
+func TestE2E_ExitZero(t *testing.T) {
+	runE2EExpectExitCode(t, `exit([0])`, 0)
+}
+
+func TestE2E_ExitOne(t *testing.T) {
+	runE2EExpectExitCode(t, `exit([1])`, 1)
+}
+
+func TestE2E_ExitNonZeroAfterOutput(t *testing.T) {
+	// output before exit should still appear, exit code should be 2
+	l := lexer.New(`|> str([42])
+exit([2])`)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	gen := New()
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	progPath, tmpDir := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
+	runCmd.Dir = tmpDir
+	out, _ := runCmd.Output()
+	if string(out) != "[42]" {
+		t.Fatalf("expected output %q, got %q", "[42]", string(out))
+	}
+	exitErr := runCmd.ProcessState.ExitCode()
+	if exitErr != 2 {
+		t.Fatalf("expected exit code 2, got %d", exitErr)
+	}
+}
