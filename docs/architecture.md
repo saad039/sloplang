@@ -146,18 +146,23 @@ package main
 
 import sloprt "github.com/saad039/sloplang/pkg/runtime"
 
-func userFn1(...) *sloprt.SlopValue { ... }
+var x *sloprt.SlopValue  // hoisted top-level variables
+var y *sloprt.SlopValue
+
+func userFn1(...) *sloprt.SlopValue { ... }  // can read/write globals
 func userFn2(...) *sloprt.SlopValue { ... }
 
 func main() {
-    // all non-fn statements
+    x = ...  // uses = (not :=) since var is package-level
+    y = ...
 }
 ```
 
 ### Key design patterns
 
+- **Variable hoisting:** Top-level `AssignStmt`, `HashDeclStmt`, and `MultiAssignStmt` names are collected in a first pass and emitted as `var name *sloprt.SlopValue` at package level. `main()` uses `=` for these.
 - **Variable tracking:** `declared map[string]bool` — first use emits `:=`, subsequent uses emit `=`
-- **Scope isolation:** `lowerFnDecl` saves/restores `declared`. Params pre-registered as declared.
+- **Scope isolation with global seeding:** `lowerFnDecl` saves/restores `declared`. The new scope is seeded with globals (so assignments to global names use `=`) and params (pre-registered as declared). New names inside functions use `:=` (local).
 - **Unused variable suppression:** Every `:=` declaration followed by `_ = varName`
 - **Builtin dispatch:** `CallExpr` checks builtin map (`str` → `sloprt.Str`, `split` → `sloprt.Split`, `to_num` → `sloprt.ToNum`), else emits direct Go function call
 - **Dual-return detection:** `isDualReturn()` identifies expressions that return two values (StdinReadExpr, FileReadExpr, `to_num` calls) — these skip `UnpackTwo` wrapping in `lowerMultiAssign`
@@ -236,6 +241,25 @@ All operations are functions that take/return `*SlopValue`:
 - `runE2EExpectPanic(t, source)` — asserts non-zero exit code (runtime panic)
 - `runE2EWithStdin(t, source, stdin)` — provides stdin via pipe
 
+### Phase 8 Program Tests (`tests/programs/programs_test.go`)
+
+10 self-contained `.slop` programs tested at multiple sizes via template substitution (`SIZE_PLACEHOLDER`):
+
+| Program | Sizes | Description |
+|---------|-------|-------------|
+| fibonacci | 0,1,5,10,20 | Recursive fib |
+| wordcount | 0,1,5,10,100,10K,100K | LCG-sampled 100-word vocab |
+| array_ops_demo | 0,1,5,10,100,10K,100K | Push/contains/remove-at/index-set |
+| linear_search | 0,1,5,10,100,10K,100K | Sequential scan, dual-return |
+| binary_search | 0,1,5,10,100,10K,100K | With embedded merge sort |
+| bubble_sort | 0,1,5,10,100 | In-place swap (O(n²) limits sizes) |
+| merge_sort | 0,1,5,10,100,10K,100K | Recursive split/merge |
+| quick_sort | 0,1,5,10,100,10K,100K | Functional partition |
+| heap_sort | 0,1,5,10,100,10K,100K | In-place heapify |
+| bst | 0,1,5,10,100,10K | Parallel-array BST with iterative inorder |
+
+Each test builds the CLI, substitutes size, runs the `.slop` program, reads `results.txt`, and diffs against Go-computed expected output.
+
 ### Semantic E2E Test Suite (Phase 7.5)
 
 355 tests across 9 domain files, each testing a specific semantic rule through the full pipeline:
@@ -266,4 +290,4 @@ Test naming convention: `TestSem_<Domain>_<Case>` (e.g., `TestSem_Mut_IndexSet_S
 | 6 | I/O (stdin + file) | Done |
 | 7 | Error Handling Patterns | Done |
 | 7.5 | Syntax Strictness Refactor + Semantic E2E Tests (355 tests) | Done |
-| 8 | Real Programs | Planned |
+| 8 | Real Programs (10 programs + E2E tests) | Done |

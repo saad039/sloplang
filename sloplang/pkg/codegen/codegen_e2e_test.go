@@ -1701,45 +1701,14 @@ func TestE2E_FnManyParams(t *testing.T) {
 }
 
 func TestE2E_FnScopeIsolation(t *testing.T) {
-	// Function should not see variables from outer scope unless passed
-	src := `x = [100]
+	// With hoisting, top-level variables are package-level globals visible to functions.
+	got := runE2E(t, `x = [100]
 fn getX() {
 	<- x
 }
-|> str(getX())`
-	// In Go codegen, x is a global in main, and getX is a top-level func.
-	// getX can't access x from main — this should fail to compile.
-	// Actually, in the current codegen, x is local to main() and getX()
-	// is a separate top-level func, so this won't compile. Let's verify.
-	l := lexer.New(src)
-	tokens := l.Tokenize()
-	p := parser.New(tokens)
-	prog, errs := p.Parse()
-	if len(errs) > 0 {
-		t.Fatalf("parse errors: %v", errs)
-	}
-	gen := New(modulePath)
-	output, err := gen.Generate(prog)
-	if err != nil {
-		t.Fatalf("codegen error: %v", err)
-	}
-	tmpDir := t.TempDir()
-	root := projectRoot()
-	goMod := fmt.Sprintf(`module test
-go 1.24
-require github.com/saad039/sloplang v0.0.0
-replace github.com/saad039/sloplang => %s
-`, root)
-	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "main.go"), output, 0644)
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	tidyCmd.CombinedOutput()
-	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
-	buildCmd.Dir = tmpDir
-	_, buildErr := buildCmd.CombinedOutput()
-	if buildErr == nil {
-		t.Fatal("expected compile error: fn should not access main-local variables")
+|> str(getX())`)
+	if got != "[100]" {
+		t.Fatalf("expected [100], got %q", got)
 	}
 }
 

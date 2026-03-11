@@ -1,0 +1,140 @@
+fn next_rand(seed) {
+    <- (seed * [1103515245] + [12345]) % [2147483648]
+}
+
+// BST uses parallel arrays: vals, lefts, rights
+// -1 means no child, bst_size tracks number of nodes
+vals = []
+lefts = []
+rights = []
+bst_size = [0]
+
+fn bst_insert(v) {
+    vals << v
+    lefts << [-1]
+    rights << [-1]
+    new_idx = bst_size
+    bst_size = bst_size + [1]
+    if new_idx == [0] {
+        <- new_idx
+    }
+    cur = [0]
+    for {
+        cur_val = vals$cur
+        if v < cur_val {
+            left = lefts$cur
+            if left == [-1] {
+                lefts$cur = new_idx
+                <- new_idx
+            }
+            cur = left
+        } else {
+            right = rights$cur
+            if right == [-1] {
+                rights$cur = new_idx
+                <- new_idx
+            }
+            cur = right
+        }
+    }
+    <- new_idx
+}
+
+fn bst_search(v) {
+    if bst_size == [0] { <- false }
+    cur = [0]
+    for {
+        if cur == [-1] { <- false }
+        cur_val = vals$cur
+        if v == cur_val { <- true }
+        if v < cur_val {
+            cur = lefts$cur
+        } else {
+            cur = rights$cur
+        }
+    }
+    <- false
+}
+
+fn bst_inorder_iter() {
+    result = []
+    stack = []
+    if bst_size == [0] { <- result }
+    cur = [0]
+    for {
+        // Push left spine
+        for {
+            if cur == [-1] { break }
+            stack << cur
+            cur = lefts$cur
+        }
+        if #stack == [0] { break }
+        cur = >>stack
+        result << vals$cur
+        cur = rights$cur
+    }
+    <- result
+}
+
+fn write_summary(label, arr) {
+    n = #arr
+    if n > [5] {
+        lo = n - [5]
+        .>> "results.txt" label
+        .>> "results.txt" ": len="
+        .>> "results.txt" str(#arr)
+        .>> "results.txt" " first5="
+        .>> "results.txt" str(arr::0::5)
+        .>> "results.txt" " last5="
+        .>> "results.txt" str(arr::lo::n)
+        .>> "results.txt" "\n"
+    } else {
+        .>> "results.txt" label
+        .>> "results.txt" ": len="
+        .>> "results.txt" str(#arr)
+        .>> "results.txt" " all="
+        .>> "results.txt" str(arr)
+        .>> "results.txt" "\n"
+    }
+    <- arr
+}
+
+.> "results.txt" ""
+
+// Build BST with N elements
+n = [SIZE_PLACEHOLDER]
+seed = [42]
+i = [0]
+for {
+    if i == n { break }
+    seed = next_rand(seed)
+    bst_insert(seed % [1000])
+    i = i + [1]
+}
+
+// Inorder traversal
+inorder = bst_inorder_iter()
+write_summary("inorder", inorder)
+
+// Search existing (first inserted value)
+if n > [0] {
+    first_val = vals@0
+    .>> "results.txt" "search_existing: "
+    .>> "results.txt" str(bst_search(first_val))
+    .>> "results.txt" "\n"
+}
+
+// Search missing
+.>> "results.txt" "search_missing: "
+.>> "results.txt" str(bst_search([9999]))
+.>> "results.txt" "\n"
+
+// Update: change root value
+if n > [0] {
+    vals@0 = [500]
+    .>> "results.txt" "updated_root: [500]\n"
+}
+
+// Re-traverse after update
+inorder2 = bst_inorder_iter()
+write_summary("after_update", inorder2)

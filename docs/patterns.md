@@ -18,6 +18,8 @@
 
 - **Assignment uses `:=` first time, `=` for reassignment.** Track declared variables in a `map[string]bool`. Without this, `total = total + x` inside a loop creates a new shadowed variable each iteration via `:=`, never updating the outer one.
 - **Function bodies need their own scope.** Save/restore the `declared` map around `lowerFnDecl`. Function params must be pre-registered as declared so assignments to params use `=`.
+- **Top-level variables are hoisted to Go package-level `var` declarations.** Without this, user-defined functions (emitted as top-level Go funcs) can't access variables declared in `main()`. A first pass collects all top-level `AssignStmt`, `HashDeclStmt`, and `MultiAssignStmt` names into a `globals` set, then emits `var x *sloprt.SlopValue` at package level. In `main()`, these use `=` (not `:=`). In `lowerFnDecl`, the function scope is seeded with globals so assignments to global names use `=` (writes to global), while new names use `:=` (creates local). This gives Python-like scoping: local-first resolution, globals accessible from any function.
+- **Unary negate on number literals inside arrays must emit raw values.** `[-1]` in sloplang must produce `NewSlopValue(int64(-1))`, not `NewSlopValue(Negate(NewSlopValue(int64(1))))`. The latter creates a nested `*SlopValue`, making `str([-1])` output `[[-1]]`. Fix: in `lowerRawValue`, detect `UnaryExpr{Op:"-", Operand:NumberLiteral}` and emit `int64(-1)` directly.
 - **For-in loop variable needs `_ = varName` suppressor.** Just like regular assignments, the range variable can be unused in some cases.
 - **`FormatValue` always brackets non-string values.** Single-element SlopValues now format as `[42]`, not `42`. Only single-element strings remain unbracketed. This means `str([42])` returns `"[42]"`, `str([null])` returns `"[null]"`, etc. Multi-element arrays and empty arrays are unchanged.
 
@@ -61,3 +63,11 @@
 - **`[0]` panics in boolean context.** `IsTruthy()` only accepts `[1]` (truthy) and `[]` (falsy). Tests that previously checked `![0]` output must become `runE2EExpectPanic` tests.
 - **Strings panic in boolean context.** `IsTruthy()` rejects single-element strings — tests using `if "hello"` must become panic tests.
 - **When refactoring tests for stricter syntax, search for ALL bare number patterns.** A partial fix (only the tests explicitly listed) will miss dozens of other tests using bare numbers in arithmetic, comparisons, and assignments. Run the full test suite after fixing the obvious ones.
+
+## Phase 8 — Real Programs
+
+- **`#arr` cannot be used inside slice postfix expressions.** `arr::mid::#arr` fails because `#` is parsed as a new unary expression, not as part of the slice. Store the length first: `len = #arr` then `arr::mid::len`.
+- **Vocab arrays must match modulo divisor.** If `seed % [100]` is used, the vocab array must have exactly 100 elements. Off-by-one means index-out-of-bounds at runtime.
+- **`SLOP_MODULE_ROOT` env var** allows the CLI to find the sloplang module root from temp directories. The test harness sets this so `slop` can build programs in temp dirs.
+- **Test template substitution pattern.** `.slop` programs use `SIZE_PLACEHOLDER` which the Go test replaces with actual sizes. `buildSource()` handles this.
+- **Stale transpiled `.go` files in `examples/`** will cause `go test ./...` to fail if they reference old APIs. Delete them when changing runtime/codegen.

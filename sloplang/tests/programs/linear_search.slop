@@ -1,0 +1,89 @@
+fn next_rand(seed) {
+    <- (seed * [1103515245] + [12345]) % [2147483648]
+}
+
+fn linear_search(arr, target) {
+    i = [0]
+    for elem in arr {
+        if elem == target {
+            <- [i, [0]]
+        }
+        i = i + [1]
+    }
+    <- [[-1], [1]]
+}
+
+fn write_summary(label, arr) {
+    n = #arr
+    if n > [5] {
+        lo = n - [5]
+        .>> "results.txt" label
+        .>> "results.txt" ": len="
+        .>> "results.txt" str(#arr)
+        .>> "results.txt" " first5="
+        .>> "results.txt" str(arr::0::5)
+        .>> "results.txt" " last5="
+        .>> "results.txt" str(arr::lo::n)
+        .>> "results.txt" "\n"
+    } else {
+        .>> "results.txt" label
+        .>> "results.txt" ": len="
+        .>> "results.txt" str(#arr)
+        .>> "results.txt" " all="
+        .>> "results.txt" str(arr)
+        .>> "results.txt" "\n"
+    }
+    <- arr
+}
+
+.> "results.txt" ""
+
+// Build
+n = [SIZE_PLACEHOLDER]
+arr = []
+seed = [42]
+i = [0]
+for {
+    if i == n { break }
+    seed = next_rand(seed)
+    arr << (seed % [1000])
+    i = i + [1]
+}
+write_summary("built", arr)
+
+// Search existing (first element)
+if #arr > [0] {
+    target = arr@0
+    idx, err = linear_search(arr, target)
+    .>> "results.txt" "search_existing: idx="
+    .>> "results.txt" str(idx)
+    .>> "results.txt" " err="
+    .>> "results.txt" str(err)
+    .>> "results.txt" "\n"
+}
+
+// Search missing
+idx2, err2 = linear_search(arr, [9999])
+.>> "results.txt" "search_missing: idx="
+.>> "results.txt" str(idx2)
+.>> "results.txt" " err="
+.>> "results.txt" str(err2)
+.>> "results.txt" "\n"
+
+// Delete element at index 0
+if #arr > [0] {
+    arr ~@ [0]
+    write_summary("after_delete", arr)
+}
+
+// Update index 0
+if #arr > [0] {
+    arr@0 = [777]
+    idx3, err3 = linear_search(arr, [777])
+    .>> "results.txt" "search_updated: idx="
+    .>> "results.txt" str(idx3)
+    .>> "results.txt" " err="
+    .>> "results.txt" str(err3)
+    .>> "results.txt" "\n"
+}
+write_summary("final", arr)

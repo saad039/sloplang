@@ -1,0 +1,16 @@
+fn fib(n) {
+    if n <= [1] {
+        <- n
+    }
+    <- fib(n - [1]) + fib(n - [2])
+}
+
+.> "results.txt" ""
+n = [SIZE_PLACEHOLDER]
+i = [0]
+for {
+    if i == n { break }
+    .>> "results.txt" str(fib(i))
+    .>> "results.txt" "\n"
+    i = i + [1]
+}

@@ -1,0 +1,135 @@
+fn next_rand(seed) {
+    <- (seed * [1103515245] + [12345]) % [2147483648]
+}
+
+fn merge(left, right) {
+    result = []
+    li = [0]
+    ri = [0]
+    for {
+        if li >= #left { break }
+        if ri >= #right { break }
+        lv = left$li
+        rv = right$ri
+        if lv <= rv {
+            result << lv
+            li = li + [1]
+        } else {
+            result << rv
+            ri = ri + [1]
+        }
+    }
+    for {
+        if li >= #left { break }
+        result << left$li
+        li = li + [1]
+    }
+    for {
+        if ri >= #right { break }
+        result << right$ri
+        ri = ri + [1]
+    }
+    <- result
+}
+
+fn merge_sort(arr) {
+    len = #arr
+    if len <= [1] { <- arr }
+    mid = len / [2]
+    left = merge_sort(arr::0::mid)
+    right = merge_sort(arr::mid::len)
+    <- merge(left, right)
+}
+
+fn is_sorted(arr) {
+    if #arr <= [1] { <- true }
+    i = [0]
+    limit = #arr - [1]
+    for {
+        if i >= limit { break }
+        next = i + [1]
+        if arr$i > arr$next { <- false }
+        i = i + [1]
+    }
+    <- true
+}
+
+fn write_summary(label, arr) {
+    n = #arr
+    if n > [5] {
+        lo = n - [5]
+        .>> "results.txt" label
+        .>> "results.txt" ": len="
+        .>> "results.txt" str(#arr)
+        .>> "results.txt" " first5="
+        .>> "results.txt" str(arr::0::5)
+        .>> "results.txt" " last5="
+        .>> "results.txt" str(arr::lo::n)
+        .>> "results.txt" "\n"
+    } else {
+        .>> "results.txt" label
+        .>> "results.txt" ": len="
+        .>> "results.txt" str(#arr)
+        .>> "results.txt" " all="
+        .>> "results.txt" str(arr)
+        .>> "results.txt" "\n"
+    }
+    <- arr
+}
+
+.> "results.txt" ""
+
+// Build
+n = [SIZE_PLACEHOLDER]
+arr = []
+seed = [42]
+i = [0]
+for {
+    if i == n { break }
+    seed = next_rand(seed)
+    arr << (seed % [1000])
+    i = i + [1]
+}
+write_summary("built", arr)
+
+// Sort
+arr = merge_sort(arr)
+write_summary("sorted", arr)
+.>> "results.txt" "is_sorted: "
+.>> "results.txt" str(is_sorted(arr))
+.>> "results.txt" "\n"
+
+// Search
+if #arr > [0] {
+    target = arr@0
+    found = false
+    for elem in arr {
+        if elem == target {
+            found = true
+            break
+        }
+    }
+    .>> "results.txt" "search_first: "
+    .>> "results.txt" str(found)
+    .>> "results.txt" "\n"
+}
+
+// Delete + re-sort
+if #arr > [0] {
+    arr ~@ [0]
+    arr = merge_sort(arr)
+    write_summary("after_delete", arr)
+    .>> "results.txt" "sorted_after_delete: "
+    .>> "results.txt" str(is_sorted(arr))
+    .>> "results.txt" "\n"
+}
+
+// Update + re-sort
+if #arr > [0] {
+    arr@0 = [999]
+    arr = merge_sort(arr)
+    write_summary("after_update", arr)
+    .>> "results.txt" "sorted_after_update: "
+    .>> "results.txt" str(is_sorted(arr))
+    .>> "results.txt" "\n"
+}

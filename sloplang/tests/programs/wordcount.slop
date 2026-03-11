@@ -1,0 +1,59 @@
+fn next_rand(seed) {
+    <- (seed * [1103515245] + [12345]) % [2147483648]
+}
+
+// Fixed 100-word English vocabulary
+vocab = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us", "much"]
+
+// Generate N words using LCG
+n = [SIZE_PLACEHOLDER]
+seed = [42]
+
+// Build the input text
+.> "wc_input.txt" ""
+i = [0]
+for {
+    if i == n { break }
+    seed = next_rand(seed)
+    idx = seed % [100]
+    word = vocab$idx
+    if i > [0] {
+        .>> "wc_input.txt" " "
+    }
+    .>> "wc_input.txt" word
+    i = i + [1]
+}
+
+// Read back and count
+.> "results.txt" ""
+if n == [0] {
+    .>> "results.txt" "total: [0]\n"
+} else {
+    data, err = <. "wc_input.txt"
+    if err != [0] {
+        .>> "results.txt" "cannot read file\n"
+    }
+
+    words = split(data, " ")
+    counts{} = []
+    for w in words {
+        if ##counts ?? w {
+            counts$w = counts$w + [1]
+        } else {
+            counts$w = [1]
+        }
+    }
+
+    // Write total word count
+    .>> "results.txt" "total: "
+    .>> "results.txt" str(#words)
+    .>> "results.txt" "\n"
+
+    // Write each word's count in insertion order
+    for k in ##counts {
+        .>> "results.txt" k
+        .>> "results.txt" ": "
+        .>> "results.txt" str(counts$k)
+        .>> "results.txt" "\n"
+    }
+}

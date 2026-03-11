@@ -1,0 +1,132 @@
+[
+  {
+    "category": "e2e",
+    "description": "Go test harness with CLI runner and LCG replication",
+    "steps": [
+      "buildSlopCLI compiles slop binary",
+      "runSlopProgram runs .slop via CLI in temp dir",
+      "buildSource replaces SIZE_PLACEHOLDER in templates",
+      "lcgNext/lcgBuildArray replicate sloplang's LCG in Go",
+      "formatSummary/formatIntArray produce expected output strings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "fibonacci.slop — recursive fib(0..9), results to file",
+    "steps": [
+      "Write fibonacci.slop with fib function and file output",
+      "Write TestPhase8_Fibonacci reading results.txt",
+      "Run test and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "wordcount.slop — word frequency counter with hashmap, results to file",
+    "steps": [
+      "Write wordcount.slop with ##counts ?? w key check",
+      "Write TestPhase8_WordCount reading results.txt",
+      "Run test and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "array_ops_demo.slop — array manipulation at 7 sizes, results to file",
+    "steps": [
+      "Write array_ops_demo.slop with LCG + insert/search/delete/update",
+      "Write TestPhase8_ArrayOps parameterized by 7 sizes",
+      "Go test replicates LCG and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "linear_search.slop — linear search at 7 sizes, results to file",
+    "steps": [
+      "Write linear_search.slop with LCG + insert/search/delete/update",
+      "Write TestPhase8_LinearSearch parameterized by 7 sizes",
+      "Go test replicates LCG and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "binary_search.slop — binary search with embedded merge sort at 7 sizes",
+    "steps": [
+      "Write binary_search.slop with merge_sort + binary_search",
+      "Write TestPhase8_BinarySearch parameterized by 7 sizes",
+      "Go test replicates LCG, sorts, and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "bubble_sort.slop — bubble sort at 7 sizes, results to file",
+    "steps": [
+      "Write bubble_sort.slop with in-place swap via $ dynamic access",
+      "Write TestPhase8_BubbleSort parameterized by 7 sizes",
+      "Go test replicates LCG, sorts, and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "merge_sort.slop — merge sort at 7 sizes, results to file",
+    "steps": [
+      "Write merge_sort.slop with recursive merge sort",
+      "Write TestPhase8_MergeSort parameterized by 7 sizes",
+      "Go test replicates LCG, sorts, and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "quick_sort.slop — quick sort at 7 sizes, results to file",
+    "steps": [
+      "Write quick_sort.slop with functional partition approach",
+      "Write TestPhase8_QuickSort parameterized by 7 sizes",
+      "Go test replicates LCG, sorts, and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "heap_sort.slop — heap sort at 7 sizes, results to file",
+    "steps": [
+      "Write heap_sort.slop with heapify using $ dynamic access",
+      "Write TestPhase8_HeapSort parameterized by 7 sizes",
+      "Go test replicates LCG, sorts, and computes expected results.txt",
+      "Run all 7 size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "bst.slop — binary search tree at 7 sizes, results to file",
+    "steps": [
+      "Write bst.slop with parallel-array BST",
+      "Write TestPhase8_BST parameterized by sizes (may skip 100K)",
+      "Go test replicates LCG, builds BST, and computes expected results.txt",
+      "Run all size subtests and verify PASS"
+    ],
+    "passes": true
+  },
+  {
+    "category": "e2e",
+    "description": "final verification — full test suite passes, docs updated",
+    "steps": [
+      "Run go test ./... and verify all tests pass",
+      "Update docs/architecture.md with Phase 8 Done",
+      "Flip all passes to true in phase8-real-programs.json"
+    ],
+    "passes": true
+  }
+]

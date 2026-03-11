@@ -31,8 +31,13 @@ func TestCodegen_Assignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codegen error: %v", err)
 	}
-	if !strings.Contains(out, "x :=") {
-		t.Fatalf("expected ':=' assignment, got:\n%s", out)
+	// Top-level variables are hoisted to package-level var declarations,
+	// so main() uses = (not :=).
+	if !strings.Contains(out, "var x") {
+		t.Fatalf("expected 'var x' package-level declaration, got:\n%s", out)
+	}
+	if !strings.Contains(out, "x =") {
+		t.Fatalf("expected 'x =' assignment, got:\n%s", out)
 	}
 	if !strings.Contains(out, "sloprt.NewSlopValue") {
 		t.Fatalf("expected sloprt.NewSlopValue call, got:\n%s", out)

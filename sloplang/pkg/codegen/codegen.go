@@ -16,6 +16,7 @@ import (
 type Generator struct {
 	modulePath string
 	declared   map[string]bool // tracks variables that have been declared
+	globals    map[string]bool // top-level variable names hoisted to package level
 }
 
 // New creates a new Generator with the given Go module path.
@@ -25,6 +26,38 @@ func New(modulePath string) *Generator {
 
 // Generate takes a sloplang AST and returns formatted Go source code.
 func (g *Generator) Generate(program *parser.Program) ([]byte, error) {
+	// Pass 1: collect top-level variable names for hoisting to package level.
+	g.globals = make(map[string]bool)
+	for _, s := range program.Statements {
+		switch stmt := s.(type) {
+		case *parser.AssignStmt:
+			g.globals[stmt.Name] = true
+		case *parser.HashDeclStmt:
+			g.globals[stmt.Name] = true
+		case *parser.MultiAssignStmt:
+			for _, name := range stmt.Names {
+				g.globals[name] = true
+			}
+		}
+	}
+
+	// Emit package-level var declarations for globals.
+	// Mark them as declared so main() uses = instead of :=.
+	var varDecls []ast.Decl
+	for name := range g.globals {
+		varDecls = append(varDecls, &ast.GenDecl{
+			Tok: token.VAR,
+			Specs: []ast.Spec{
+				&ast.ValueSpec{
+					Names: []*ast.Ident{ast.NewIdent(name)},
+					Type:  slopValuePtrType(),
+				},
+			},
+		})
+		g.declared[name] = true
+	}
+
+	// Pass 2: lower statements.
 	var fnDecls []ast.Decl
 	mainStmts := make([]ast.Stmt, 0, len(program.Statements)*2)
 
@@ -57,6 +90,7 @@ func (g *Generator) Generate(program *parser.Program) ([]byte, error) {
 	}
 
 	decls := []ast.Decl{importDecl}
+	decls = append(decls, varDecls...)
 	decls = append(decls, fnDecls...)
 	decls = append(decls, mainFunc)
 
@@ -130,18 +164,25 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 			Type: &ast.ArrayType{Elt: ast.NewIdent("string")},
 			Elts: keyElts,
 		}
-		assign := &ast.AssignStmt{
-			Lhs: []ast.Expr{ast.NewIdent(s.Name)},
-			Tok: token.DEFINE,
-			Rhs: []ast.Expr{callSloprt("MapFromKeysValues", keysLit, g.lowerExpr(s.Value))},
+		tok := token.DEFINE
+		if g.declared[s.Name] {
+			tok = token.ASSIGN
 		}
 		g.declared[s.Name] = true
-		suppress := &ast.AssignStmt{
-			Lhs: []ast.Expr{ast.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []ast.Expr{ast.NewIdent(s.Name)},
+		assign := &ast.AssignStmt{
+			Lhs: []ast.Expr{ast.NewIdent(s.Name)},
+			Tok: tok,
+			Rhs: []ast.Expr{callSloprt("MapFromKeysValues", keysLit, g.lowerExpr(s.Value))},
 		}
-		return []ast.Stmt{assign, suppress}
+		if tok == token.DEFINE {
+			suppress := &ast.AssignStmt{
+				Lhs: []ast.Expr{ast.NewIdent("_")},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{ast.NewIdent(s.Name)},
+			}
+			return []ast.Stmt{assign, suppress}
+		}
+		return []ast.Stmt{assign}
 	case *parser.KeySetStmt:
 		return []ast.Stmt{
 			&ast.ExprStmt{X: callSloprt("IndexKeySetStr", g.lowerExpr(s.Object), &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(s.Key)}, g.lowerExpr(s.Value))},
@@ -177,9 +218,13 @@ func (g *Generator) lowerFnDecl(fd *parser.FnDeclStmt) *ast.FuncDecl {
 		}
 	}
 
-	// Save outer scope and create a new scope for the function
+	// Save outer scope and create a new scope for the function.
+	// Seed with globals so assignments to global names use = (not :=).
 	outerDeclared := g.declared
 	g.declared = make(map[string]bool)
+	for name := range g.globals {
+		g.declared[name] = true
+	}
 	for _, p := range fd.Params {
 		g.declared[p] = true // params are already declared
 	}
@@ -298,28 +343,43 @@ func (g *Generator) lowerMultiAssign(s *parser.MultiAssignStmt) []ast.Stmt {
 
 	var rhs []ast.Expr
 	if g.isDualReturn(s.Value) {
-		// Dual-return functions already return two values — no UnpackTwo needed
 		rhs = []ast.Expr{g.lowerExpr(s.Value)}
 	} else {
-		// a, b = expr  →  a, b := sloprt.UnpackTwo(loweredExpr)
 		rhs = []ast.Expr{callSloprt("UnpackTwo", g.lowerExpr(s.Value))}
+	}
+
+	// Use = if all names are already declared, := otherwise.
+	allDeclared := true
+	for _, name := range s.Names {
+		if !g.declared[name] {
+			allDeclared = false
+			break
+		}
+	}
+	tok := token.DEFINE
+	if allDeclared {
+		tok = token.ASSIGN
+	}
+	for _, name := range s.Names {
+		g.declared[name] = true
 	}
 
 	assign := &ast.AssignStmt{
 		Lhs: lhs,
-		Tok: token.DEFINE,
+		Tok: tok,
 		Rhs: rhs,
 	}
 
-	// Suppress unused variable errors
 	var stmts []ast.Stmt
 	stmts = append(stmts, assign)
-	for _, name := range s.Names {
-		stmts = append(stmts, &ast.AssignStmt{
-			Lhs: []ast.Expr{ast.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []ast.Expr{ast.NewIdent(name)},
-		})
+	if tok == token.DEFINE {
+		for _, name := range s.Names {
+			stmts = append(stmts, &ast.AssignStmt{
+				Lhs: []ast.Expr{ast.NewIdent("_")},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{ast.NewIdent(name)},
+			})
+		}
 	}
 	return stmts
 }
@@ -444,6 +504,16 @@ func (g *Generator) lowerRawValue(expr parser.Expr) ast.Expr {
 	case *parser.BinaryExpr:
 		return g.lowerExpr(e)
 	case *parser.UnaryExpr:
+		// Negate on a number literal: emit raw negated value (e.g., int64(-1))
+		// instead of sloprt.Negate() which returns *SlopValue and causes nesting.
+		if e.Op == "-" {
+			if nl, ok := e.Operand.(*parser.NumberLiteral); ok {
+				return g.lowerNumberRaw(&parser.NumberLiteral{
+					Value:   "-" + nl.Value,
+					NumType: nl.NumType,
+				})
+			}
+		}
 		return g.lowerExpr(e)
 	case *parser.CallExpr:
 		return g.lowerExpr(e)

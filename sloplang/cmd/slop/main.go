@@ -72,19 +72,24 @@ func main() {
 	}
 
 	// Find the sloplang module root for the replace directive
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error finding executable path: %v\n", err)
-		os.Exit(1)
-	}
-	moduleRoot, err := findModuleRoot(filepath.Dir(exePath))
-	if err != nil {
-		// Fallback: try from current working directory
-		cwd, _ := os.Getwd()
-		moduleRoot, err = findModuleRoot(cwd)
+	var moduleRoot string
+	if envRoot := os.Getenv("SLOP_MODULE_ROOT"); envRoot != "" {
+		moduleRoot = envRoot
+	} else {
+		exePath, err := os.Executable()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "error finding executable path: %v\n", err)
 			os.Exit(1)
+		}
+		moduleRoot, err = findModuleRoot(filepath.Dir(exePath))
+		if err != nil {
+			// Fallback: try from current working directory
+			cwd, _ := os.Getwd()
+			moduleRoot, err = findModuleRoot(cwd)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
 		}
 	}
 
