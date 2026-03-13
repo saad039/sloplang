@@ -2,7 +2,7 @@
 
 A programming language that takes every best practice established in language design and throws them into the dustbin.
 
-**Everything is an array.** Numbers? Arrays. Booleans? Arrays. Strings? Okay fine, strings are strings. But everything else is an array. Arithmetic is element-wise. `[1] + [1]` gives you `[2]`. Want to add two numbers? Wrap them in brackets first. Welcome to the slop.
+**Everything is an array.** Numbers? Arrays. Booleans? Arrays. Matrices? Arrays of arrays. Hashmaps? Arrays with string keys. Structs? Just hashmaps. Strings? Okay fine, strings are strings — but they live inside arrays too. There is one data structure and it's an array. `[42]` is a number. `[1, 2, 3]` is a list. `[[1, 2], [3, 4]]` is a matrix. `{"name": "bob", "age": [30]}` is a hashmap (which is an array). Arithmetic is element-wise — `[1] + [1]` gives you `[2]`, `[2, 3] * [4, 5]` gives you `[8, 15]`. Want to add two numbers? Wrap them in brackets first. Welcome to the slop.
 
 ## Design Philosophy
 
