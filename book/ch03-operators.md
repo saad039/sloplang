@@ -24,16 +24,19 @@ Arithmetic operators perform element-wise operations on arrays of the same lengt
 |> "\n"
 ```
 
-**`/` (Division)** — integer division (truncated toward zero) for int64 arrays:
+**`/` (Division)** — integer division (truncated toward zero) for int64 arrays. Division by zero panics with `"sloplang: division by zero"`. The edge case `MinInt64 / -1` (which overflows int64) panics with `"sloplang: integer overflow"`:
 ```
 |> str([10] / [3])    // [3]   — integer division, truncated
 |> "\n"
+// [10] / [0] panics: division by zero
+// [-9223372036854775808] / [-1] panics: integer overflow
 ```
 
-**`%` (Modulo)** — remainder of integer division:
+**`%` (Modulo)** — remainder of integer division. Modulo by zero panics with `"sloplang: modulo by zero"`:
 ```
 |> str([10] % [3])    // [1]
 |> "\n"
+// [10] % [0] panics: modulo by zero
 ```
 
 **`**` (Power)** — exponentiation, right-associative:
@@ -44,10 +47,11 @@ Arithmetic operators perform element-wise operations on arrays of the same lengt
 |> "\n"
 ```
 
-**Unary `-` (Negation)** — negates all elements:
+**Unary `-` (Negation)** — negates all elements. Negating `MinInt64` (`-9223372036854775808`) panics with `"sloplang: cannot negate MinInt64"` because the result overflows int64:
 ```
 |> str(-[1, 2, 3])    // [-1, -2, -3]
 |> "\n"
+// -[-9223372036854775808] panics: integer overflow
 ```
 
 > **Pitfall:** `--x` is TOKEN_REMOVE, not double negation.

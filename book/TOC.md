@@ -212,4 +212,8 @@ Complete EBNF grammar: program, statements, expressions, literals, identifiers.
 | Error handling pattern unclear | [Ch 9.1](ch09-errors.md) — dual-return convention |
 | Global variable not updating | [Ch 5.4](ch05-functions.md) — scope and globals |
 | How to iterate a hashmap | [Ch 7.5](ch07-hashmaps.md) — `##` for keys, `for k in` |
+| Modulo by zero panic | [Ch 9.7](ch09-errors.md) — runtime error; [Ch 12.6 §9](ch12-transpiler.md) |
+| MinInt64 / -1 integer overflow | [Ch 9.7](ch09-errors.md) — runtime error; [Ch 12.6 §10](ch12-transpiler.md) |
+| Variable used before assignment | [Ch 9.7](ch09-errors.md) — runtime error; [Ch 12.6 §12](ch12-transpiler.md) |
+| Unterminated string error | [Ch 12.6 §13](ch12-transpiler.md) — lexer rejects unclosed strings |
 | No output / missing newlines | [Ch 8.1](ch08-io.md) — `\|>` has no trailing newline; [App C §16](appendix-c-limitations.md) |

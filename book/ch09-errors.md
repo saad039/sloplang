@@ -280,6 +280,17 @@ if x {           // panics: sloplang: boolean expression must be [1] or [], got 
 a = [10]
 b = [0]
 |> str(a / b)    // panics: sloplang: division by zero
+
+// Modulo by zero
+|> str([5] % [0])    // panics: sloplang: modulo by zero
+
+// Integer overflow
+|> str([-9223372036854775808] / [-1])    // panics: sloplang: integer overflow
+|> str(-[-9223372036854775808])          // panics: sloplang: cannot negate MinInt64
+
+// Variable used before assignment
+|> x             // panics: sloplang: variable used before assignment
+x = [1]
 ```
 
 When such a panic occurs, you will see output similar to:

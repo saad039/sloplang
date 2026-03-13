@@ -24,7 +24,9 @@ y = [42u]
 
 ## 2.3 Floating-Point: float64
 
-Floating-point values use the float64 type. A decimal literal with a fractional part, like `[3.14]`, creates a float64 array. Floating-point arithmetic follows standard rules; note that Go's `%g` formatting drops trailing zeros. For example, `[3.14] + [2.86]` evaluates to `[6]` rather than `[6.0]`.
+Floating-point values use the float64 type. A decimal literal with a fractional part, like `[3.14]`, creates a float64 array. Scientific notation is supported: `[1.79e308]`, `[5e-324]`, `[2.5e10]` are all valid float64 literals. The `e`/`E` may be followed by an optional `+`/`-` sign and exponent digits.
+
+Floating-point arithmetic follows standard rules; note that Go's `%g` formatting drops trailing zeros. For example, `[3.14] + [2.86]` evaluates to `[6]` rather than `[6.0]`.
 
 Mixing float64 with int64 or uint64 panics, just as it does when mixing integer types. Sloplang has no casting mechanism — all operands in an arithmetic expression must be the same numeric type. If your program handles both, keep them in separate variables and operate within each type (see Appendix C).
 
@@ -33,6 +35,8 @@ fa = [3.14] + [2.86]
 |> str(fa)             // [6]
 |> "\n"
 |> str([2.5] * [2.0])  // [5]
+|> "\n"
+|> str([5e-324])       // [5e-324]   — scientific notation
 |> "\n"
 // [1] + [1.0] would panic — int64 vs float64 type mismatch
 ```

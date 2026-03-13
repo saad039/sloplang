@@ -201,36 +201,41 @@ When the lexer sees `--x`, it greedily consumes both `-` characters as a single 
 
 ### Comments and strings
 
-`//` comments are skipped by consuming characters until newline. String literals handle four escape sequences (`\n`, `\t`, `\\`, `\"`):
+`//` comments are skipped by consuming characters until newline. String literals handle four escape sequences (`\n`, `\t`, `\\`, `\"`). `readString()` returns `(string, bool)` — `false` signals EOF before a closing `"`, allowing the caller to emit `TOKEN_ILLEGAL` with `"unterminated string"`:
 
 ```go
-func (l *Lexer) readString() string {
+func (l *Lexer) readString() (string, bool) {
     l.readChar() // skip opening "
     var result []byte
     for l.ch != '"' && l.ch != 0 {
         if l.ch == '\\' {
             l.readChar()
+            if l.ch == 0 {
+                return string(result), false  // EOF inside escape
+            }
             switch l.ch {
-            case 'n':
-                result = append(result, '\n')
-            case 't':
-                result = append(result, '\t')
-            case '\\':
-                result = append(result, '\\')
-            case '"':
-                result = append(result, '"')
-            default:
-                result = append(result, '\\', l.ch)
+            case 'n':  result = append(result, '\n')
+            case 't':  result = append(result, '\t')
+            case '\\': result = append(result, '\\')
+            case '"':  result = append(result, '"')
+            default:   result = append(result, '\\', l.ch)
             }
         } else {
             result = append(result, l.ch)
         }
         l.readChar()
     }
+    if l.ch == 0 {
+        return string(result), false  // EOF before closing "
+    }
     l.readChar() // skip closing "
-    return string(result)
+    return string(result), true
 }
 ```
+
+### Scientific notation
+
+`readNumber()` supports scientific notation (`1.79e308`, `5e-324`). After reading the integer or decimal part, it checks for `e`/`E` and peeks ahead to verify a valid exponent before consuming. If the character after `e` is not a digit or sign, the `e` is left alone as the start of the next token (an identifier). This ensures `e` suffix on a number that isn't part of a valid exponent doesn't break tokenization.
 
 ### Keywords
 
@@ -488,6 +493,27 @@ for name := range g.globals {
 }
 ```
 
+### Go keyword sanitization
+
+User-defined identifiers that collide with Go's 25 keywords (`func`, `var`, `return`, `range`, `map`, etc.) would produce invalid Go ASTs that crash `format.Source()`. The codegen sanitizes these with `sanitizeIdent()`, which prefixes conflicting names with `slop_`:
+
+```go
+var goKeywords = map[string]bool{
+    "break": true, "case": true, "chan": true, "const": true,
+    "continue": true, "default": true, "defer": true, "else": true,
+    // ... all 25 Go keywords ...
+}
+
+func sanitizeIdent(name string) string {
+    if goKeywords[name] {
+        return "slop_" + name
+    }
+    return name
+}
+```
+
+This is applied at every `ast.NewIdent` call site that emits a user-defined name (variable declarations, function names, parameters, for-loop variables, identifier references). Hardcoded Go names like runtime functions, `"_"`, `"main"`, and `"nil"` are not sanitized. This means a sloplang variable named `func` transparently becomes `slop_func` in the generated Go — the user never sees the conflict.
+
 **Pass 2** lowers statements: function declarations become top-level `*ast.FuncDecl` nodes, everything else goes into `main()`.
 
 The final `*ast.File` structure mirrors:
@@ -653,10 +679,13 @@ func NewSlopValue(elems ...any) *SlopValue {
 
 ### FormatValue
 
-`FormatValue` is the function behind `str()` and `|>`. It has one special case: a single-element string prints without brackets. Everything else — single integers, floats, multi-element arrays, empty arrays, hashmaps — is wrapped in `[...]`:
+`FormatValue` is the function behind `str()` and `|>`. It begins with a nil guard: if `v` is `nil` (which happens when a hoisted global variable is used before assignment), it panics with `"sloplang: variable used before assignment"` instead of crashing with a SIGSEGV. After that, it has one special case: a single-element string prints without brackets. Everything else — single integers, floats, multi-element arrays, empty arrays, hashmaps — is wrapped in `[...]`:
 
 ```go
 func FormatValue(v *SlopValue) string {
+    if v == nil {
+        panic("sloplang: variable used before assignment")
+    }
     // Single-element string: print raw (no brackets)
     if len(v.Elements) == 1 {
         if s, ok := v.Elements[0].(string); ok {
@@ -830,6 +859,26 @@ func Split(sv, sep *SlopValue) *SlopValue {
 
 User-defined functions are emitted as top-level Go `func` declarations by `lowerFnDecl`. They are not `*SlopValue` objects. There is no codegen path that wraps a function in a `SlopValue`. `SlopValue.Elements` holds `int64`, `uint64`, `float64`, `string`, `*SlopValue`, and `SlopNull` — there is no function pointer case. Attempting to assign a function to a variable (`f = myFunc`) would parse as an identifier reference, which would produce a Go identifier that cannot be assigned to a `*SlopValue`.
 
+### 9. Modulo by zero panics
+
+`Mod()` checks for zero divisors in both int64 and uint64 cases and panics with `"sloplang: modulo by zero"`. Without this check, Go's `%` operator would produce a raw `"integer divide by zero"` panic — the same underlying CPU fault as division by zero, but with a confusing message for sloplang users.
+
+### 10. MinInt64 / -1 panics (integer overflow)
+
+`Div()` checks for the edge case where `math.MinInt64` is divided by `-1`. The mathematical result (`math.MaxInt64 + 1`) cannot be represented in int64. Without the check, Go would produce a raw panic. `Div()` now panics with `"sloplang: integer overflow: MinInt64 / -1"`.
+
+### 11. Negating MinInt64 panics (integer overflow)
+
+`Negate()` checks for `math.MinInt64` in the int64 case. `-MinInt64` overflows (silently wraps back to `MinInt64` in Go). `Negate()` now panics with `"sloplang: cannot negate MinInt64: integer overflow"`.
+
+### 12. Using a variable before assignment panics
+
+Top-level variables are hoisted as `var x *SlopValue` (nil by default). If code references `x` before `x = [...]` assigns to it, `FormatValue` and `binaryOp` catch the nil pointer and panic with `"sloplang: variable used before assignment"` instead of crashing with a SIGSEGV.
+
+### 13. Unclosed strings are rejected
+
+If a string literal reaches EOF without a closing `"`, the lexer returns `TOKEN_ILLEGAL` with `"unterminated string"`. This produces a clean parse error instead of silently consuming the rest of the file as string content.
+
 ---
 
-The transpiler is approximately 3,500 lines of Go across four packages. Each stage is narrow in responsibility: the lexer knows nothing about AST nodes, the parser knows nothing about Go code, the codegen knows nothing about file I/O. The runtime is a pure library with no awareness of the pipeline above it. This separation makes it straightforward to add new operators, builtins, and statement forms — the pattern established in Phases 1 through 8 is: add a token, add an AST node, add a codegen case, add a runtime function.
+The transpiler is approximately 4,000 lines of Go across four packages. Each stage is narrow in responsibility: the lexer knows nothing about AST nodes, the parser knows nothing about Go code, the codegen knows nothing about file I/O. The runtime is a pure library with no awareness of the pipeline above it. This separation makes it straightforward to add new operators, builtins, and statement forms — the pattern established in Phases 1 through 9 is: add a token, add an AST node, add a codegen case, add a runtime function.
