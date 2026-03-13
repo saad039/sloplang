@@ -1,0 +1,7 @@
+panic: sloplang: [0] is not a valid boolean — use [] for false
+
+goroutine 1 [running]:
+main.(*SlopValue).IsTruthy(0xNNN)
+	main.go:NNN +0xNNN
+main.main()
+	main.go:NNN +0xNNN

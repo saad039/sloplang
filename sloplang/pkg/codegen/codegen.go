@@ -13,6 +13,24 @@ import (
 	"github.com/saad039/sloplang/pkg/parser"
 )
 
+// goKeywords is the set of Go's 25 reserved keywords. User-defined identifiers
+// that collide with these must be renamed so that the generated Go AST remains valid.
+var goKeywords = map[string]bool{
+	"break": true, "case": true, "chan": true, "const": true, "continue": true,
+	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
+	"func": true, "go": true, "goto": true, "if": true, "import": true,
+	"interface": true, "map": true, "package": true, "range": true, "return": true,
+	"select": true, "struct": true, "switch": true, "type": true, "var": true,
+}
+
+// sanitizeIdent prefixes Go keywords with "slop_" so they become valid Go identifiers.
+func sanitizeIdent(name string) string {
+	if goKeywords[name] {
+		return "slop_" + name
+	}
+	return name
+}
+
 // Generator produces Go source code from a sloplang AST.
 type Generator struct {
 	declared map[string]bool // tracks variables that have been declared
@@ -49,7 +67,7 @@ func (g *Generator) Generate(program *parser.Program) ([]byte, error) {
 			Tok: token.VAR,
 			Specs: []ast.Spec{
 				&ast.ValueSpec{
-					Names: []*ast.Ident{ast.NewIdent(name)},
+					Names: []*ast.Ident{ast.NewIdent(sanitizeIdent(name))},
 					Type:  slopValuePtrType(),
 				},
 			},
@@ -186,7 +204,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		}
 		g.declared[s.Name] = true
 		assign := &ast.AssignStmt{
-			Lhs: []ast.Expr{ast.NewIdent(s.Name)},
+			Lhs: []ast.Expr{ast.NewIdent(sanitizeIdent(s.Name))},
 			Tok: tok,
 			Rhs: []ast.Expr{g.lowerExpr(s.Value)},
 		}
@@ -194,7 +212,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 			suppress := &ast.AssignStmt{
 				Lhs: []ast.Expr{ast.NewIdent("_")},
 				Tok: token.ASSIGN,
-				Rhs: []ast.Expr{ast.NewIdent(s.Name)},
+				Rhs: []ast.Expr{ast.NewIdent(sanitizeIdent(s.Name))},
 			}
 			return []ast.Stmt{assign, suppress}
 		}
@@ -240,7 +258,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		}
 		g.declared[s.Name] = true
 		assign := &ast.AssignStmt{
-			Lhs: []ast.Expr{ast.NewIdent(s.Name)},
+			Lhs: []ast.Expr{ast.NewIdent(sanitizeIdent(s.Name))},
 			Tok: tok,
 			Rhs: []ast.Expr{callRuntime("MapFromKeysValues", keysLit, g.lowerExpr(s.Value))},
 		}
@@ -248,7 +266,7 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 			suppress := &ast.AssignStmt{
 				Lhs: []ast.Expr{ast.NewIdent("_")},
 				Tok: token.ASSIGN,
-				Rhs: []ast.Expr{ast.NewIdent(s.Name)},
+				Rhs: []ast.Expr{ast.NewIdent(sanitizeIdent(s.Name))},
 			}
 			return []ast.Stmt{assign, suppress}
 		}
@@ -283,7 +301,7 @@ func (g *Generator) lowerFnDecl(fd *parser.FnDeclStmt) *ast.FuncDecl {
 	params := make([]*ast.Field, len(fd.Params))
 	for i, p := range fd.Params {
 		params[i] = &ast.Field{
-			Names: []*ast.Ident{ast.NewIdent(p)},
+			Names: []*ast.Ident{ast.NewIdent(sanitizeIdent(p))},
 			Type:  slopValuePtrType(),
 		}
 	}
@@ -308,7 +326,7 @@ func (g *Generator) lowerFnDecl(fd *parser.FnDeclStmt) *ast.FuncDecl {
 	g.declared = outerDeclared
 
 	return &ast.FuncDecl{
-		Name: ast.NewIdent(fd.Name),
+		Name: ast.NewIdent(sanitizeIdent(fd.Name)),
 		Type: &ast.FuncType{
 			Params: &ast.FieldList{List: params},
 			Results: &ast.FieldList{
@@ -354,7 +372,7 @@ func (g *Generator) lowerForInStmt(s *parser.ForInStmt) *ast.RangeStmt {
 	suppress := &ast.AssignStmt{
 		Lhs: []ast.Expr{ast.NewIdent("_")},
 		Tok: token.ASSIGN,
-		Rhs: []ast.Expr{ast.NewIdent(s.VarName)},
+		Rhs: []ast.Expr{ast.NewIdent(sanitizeIdent(s.VarName))},
 	}
 	bodyStmts := []ast.Stmt{suppress}
 	for _, stmt := range s.Body {
@@ -363,7 +381,7 @@ func (g *Generator) lowerForInStmt(s *parser.ForInStmt) *ast.RangeStmt {
 
 	return &ast.RangeStmt{
 		Key:   ast.NewIdent("_"),
-		Value: ast.NewIdent(s.VarName),
+		Value: ast.NewIdent(sanitizeIdent(s.VarName)),
 		Tok:   token.DEFINE,
 		X:     callRuntime("Iterate", g.lowerExpr(s.Iterable)),
 		Body:  &ast.BlockStmt{List: bodyStmts},
@@ -408,7 +426,7 @@ func (g *Generator) isDualReturn(expr parser.Expr) bool {
 func (g *Generator) lowerMultiAssign(s *parser.MultiAssignStmt) []ast.Stmt {
 	lhs := make([]ast.Expr, len(s.Names))
 	for i, name := range s.Names {
-		lhs[i] = ast.NewIdent(name)
+		lhs[i] = ast.NewIdent(sanitizeIdent(name))
 	}
 
 	var rhs []ast.Expr
@@ -447,7 +465,7 @@ func (g *Generator) lowerMultiAssign(s *parser.MultiAssignStmt) []ast.Stmt {
 			stmts = append(stmts, &ast.AssignStmt{
 				Lhs: []ast.Expr{ast.NewIdent("_")},
 				Tok: token.ASSIGN,
-				Rhs: []ast.Expr{ast.NewIdent(name)},
+				Rhs: []ast.Expr{ast.NewIdent(sanitizeIdent(name))},
 			})
 		}
 	}
@@ -477,7 +495,7 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 			Type: ast.NewIdent("SlopNull"),
 		})
 	case *parser.Identifier:
-		return ast.NewIdent(e.Name)
+		return ast.NewIdent(sanitizeIdent(e.Name))
 	case *parser.IndexExpr:
 		return callRuntime("Index", g.lowerExpr(e.Object), g.lowerExpr(e.Index))
 	case *parser.KeyAccessExpr:
@@ -530,7 +548,7 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		}
 		// User-defined function call
 		return &ast.CallExpr{
-			Fun:  ast.NewIdent(e.Name),
+			Fun:  ast.NewIdent(sanitizeIdent(e.Name)),
 			Args: args,
 		}
 	default:
@@ -561,7 +579,7 @@ func (g *Generator) lowerRawValue(expr parser.Expr) ast.Expr {
 			Type: ast.NewIdent("SlopNull"),
 		}
 	case *parser.Identifier:
-		return ast.NewIdent(e.Name)
+		return ast.NewIdent(sanitizeIdent(e.Name))
 	case *parser.BinaryExpr:
 		return g.lowerExpr(e)
 	case *parser.UnaryExpr:

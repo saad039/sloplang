@@ -56,6 +56,9 @@ func StdoutWrite(v *SlopValue) {
 // FormatValue returns the string representation of a SlopValue.
 // Single-element strings print without brackets; everything else uses bracket notation.
 func FormatValue(v *SlopValue) string {
+	if v == nil {
+		panic("sloplang: variable used before assignment")
+	}
 	// Single-element string: print raw (no brackets)
 	if len(v.Elements) == 1 {
 		if s, ok := v.Elements[0].(string); ok {

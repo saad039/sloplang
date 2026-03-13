@@ -91,11 +91,11 @@ Requires Go 1.21+.
 ```bash
 cd sloplang
 
-# build the transpiler
-go build -o slop ./cmd/slop/...
+# build the standalone binary (embeds runtime, no external Go dependency needed to run)
+go build -o slop .
 
 # or run directly
-go run ./cmd/slop/main.go <file.slop>
+go run . program.slop
 ```
 
 ## Usage
@@ -105,21 +105,39 @@ go run ./cmd/slop/main.go <file.slop>
 ./slop program.slop
 ```
 
-The CLI transpiles `<file>.slop` to `<file>.go`, compiles it, and runs the binary. The generated `.go` file is kept in the same directory for inspection.
+The CLI transpiles your `.slop` source to Go, compiles it with the embedded runtime, runs the binary, and cleans up. No Go installation needed on the target machine — the `slop` binary is fully self-contained.
 
 ## Run the Examples
 
 ```bash
 cd sloplang
 
-# run an example
 ./slop examples/hello.slop
-
-# or without building first
-go run ./cmd/slop/main.go examples/hello.slop
+./slop examples/arrays.slop
+./slop examples/maps.slop
+./slop examples/fns.slop
+./slop examples/errors.slop
+./slop examples/fileio.slop
 ```
 
+10 example programs covering: hello world, arithmetic, arrays, comparisons, strings, functions, hashmaps, null handling, error handling, and file I/O.
+
+## Real Programs
+
+10 non-trivial programs in `tests/programs/` that prove sloplang can do actual work:
+
+- **fibonacci** — iterative Fibonacci sequence
+- **wordcount** — word frequency counter
+- **array_ops** — array manipulation demo
+- **linear_search** / **binary_search** — search algorithms
+- **bubble_sort** / **merge_sort** / **quick_sort** / **heap_sort** — sorting algorithms
+- **bst** — binary search tree (insert, search, in-order traversal)
+
+All verified by E2E tests that transpile, compile, run, and diff output.
+
 ## Tests
+
+1,450+ tests across 5 packages:
 
 ```bash
 cd sloplang
@@ -129,22 +147,48 @@ go test ./pkg/lexer/...                 # lexer only
 go test ./pkg/parser/...                # parser only
 go test ./pkg/codegen/...               # codegen + e2e tests
 go test ./pkg/runtime/...               # runtime only
+go test ./tests/programs/...            # real program e2e tests
 ```
+
+The test suite includes:
+- **Unit tests** — lexer tokenization, parser AST construction, runtime operations
+- **E2E tests** — full pipeline (source -> lex -> parse -> codegen -> compile -> run -> verify output)
+- **Semantic tests** — 355 tests covering mutation, equality, formatting, booleans, null, arithmetic, array ops, hashmaps, control flow
+- **Adversarial tests** — 285 edge-case tests across syntax, types, boundaries, scoping, nesting, error recovery, identifiers, strings, hashmaps, interactions, mutation during iteration, and spec compliance
+- **Snapshot tests** — panic messages verified against golden files for stable error formatting
 
 ## Project Structure
 
 ```
 sloplang/
-  cmd/slop/         # CLI entrypoint
+  main.go               # standalone CLI (embeds runtime via go:embed)
   pkg/
-    lexer/          # tokenizer
-    parser/         # AST builder
-    codegen/        # Go code generator
-    runtime/        # SlopValue runtime (arrays, ops, I/O)
-  examples/         # .slop example programs
+    lexer/               # tokenizer
+    parser/              # recursive descent parser, AST types
+    codegen/             # Go AST code generator + all E2E tests
+    runtime/             # SlopValue type, ops, I/O, builtins
+  tests/programs/        # 10 real .slop programs + test harness
+  examples/              # 10 .slop example programs
+  go.mod
 docs/
-  PRD.md            # full language spec
+  PRD.md                 # full language spec
+  architecture.md        # transpiler architecture
+  plans/                 # implementation plans (phases 1-9)
+  patterns.md            # lessons learned
 ```
+
+## Language Features
+
+- **Array-first data model** — all values are arrays, arithmetic is element-wise
+- **Strict booleans** — only `[1]` is truthy, only `[]` is falsy, everything else panics
+- **Symbolic operators** — 26 operators, zero methods, zero dot notation
+- **Hashmaps** — declared with `{}` syntax, keys are always strings
+- **Null** — strict semantics, must be bracketed (`[null]`), panics on arithmetic/boolean use
+- **Dual-return error handling** — Go-style `(result, errcode)`, no exceptions
+- **File and stdin I/O** — `<.`, `.>`, `.>>`, `<|` operators
+- **Scientific notation** — `[1.79e308]`, `[5e-324]` float literals
+- **Go keyword safety** — sloplang variables can use Go keywords (`func`, `var`, `range`, etc.) without conflict
+- **Clean error messages** — division by zero, modulo by zero, integer overflow, type mismatches, and use-before-assign all produce readable sloplang errors instead of raw Go panics
 
 ## License
 

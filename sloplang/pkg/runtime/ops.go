@@ -12,6 +12,9 @@ func checkLengths(a, b *SlopValue) {
 }
 
 func binaryOp(a, b *SlopValue, op func(x, y any) any) *SlopValue {
+	if a == nil || b == nil {
+		panic("sloplang: variable used before assignment")
+	}
 	checkLengths(a, b)
 	result := make([]any, len(a.Elements))
 	for i := range a.Elements {
@@ -118,6 +121,9 @@ func Div(a, b *SlopValue) *SlopValue {
 			if yv == 0 {
 				panic("sloplang: division by zero")
 			}
+			if xv == math.MinInt64 && yv == -1 {
+				panic("sloplang: integer overflow: MinInt64 / -1")
+			}
 			return xv / yv
 		case uint64:
 			yv, ok := y.(uint64)
@@ -151,11 +157,17 @@ func Mod(a, b *SlopValue) *SlopValue {
 			if !ok {
 				panic(fmt.Sprintf("sloplang: type mismatch in %%: int64 vs %T", y))
 			}
+			if yv == 0 {
+				panic("sloplang: modulo by zero")
+			}
 			return xv % yv
 		case uint64:
 			yv, ok := y.(uint64)
 			if !ok {
 				panic(fmt.Sprintf("sloplang: type mismatch in %%: uint64 vs %T", y))
+			}
+			if yv == 0 {
+				panic("sloplang: modulo by zero")
 			}
 			return xv % yv
 		default:
@@ -198,6 +210,9 @@ func Negate(a *SlopValue) *SlopValue {
 		case SlopNull:
 			panic("sloplang: cannot negate null")
 		case int64:
+			if e == math.MinInt64 {
+				panic("sloplang: cannot negate MinInt64: integer overflow")
+			}
 			result[i] = -e
 		case uint64:
 			result[i] = -int64(e)

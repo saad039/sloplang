@@ -1,0 +1,11 @@
+panic: sloplang: type mismatch in +: int64 vs float64
+
+goroutine 1 [running]:
+main.main.Add.func1({0xNNN, 0xNNN}, {0xNNN, 0xNNN})
+	main.go:NNN +0xNNN
+main.binaryOp(0xNNN, 0xNNN, 0xNNN)
+	main.go:NNN +0xNNN
+main.Add(...)
+	main.go:NNN
+main.main()
+	main.go:NNN +0xNNN

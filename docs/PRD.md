@@ -213,7 +213,7 @@ fn add(a, b) {
 result = add([3], [4])    // [7]
 ```
 
-Functions are first-class values.
+Functions are **not** first-class values. They cannot be stored in variables, passed as arguments, or returned from other functions. Functions must be declared at the top level with `fn` and called by name only.
 
 ## Built-in Functions
 

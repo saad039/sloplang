@@ -1,0 +1,11 @@
+panic: sloplang: division by zero
+
+goroutine 1 [running]:
+main.main.Div.func1({0xNNN, 0xNNN}, {0xNNN, 0xNNN})
+	main.go:NNN +0xNNN
+main.binaryOp(0xNNN, 0xNNN, 0xNNN)
+	main.go:NNN +0xNNN
+main.Div(...)
+	main.go:NNN
+main.main()
+	main.go:NNN +0xNNN

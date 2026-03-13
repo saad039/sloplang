@@ -380,11 +380,13 @@ func (p *Parser) parseHashDeclStmt() *HashDeclStmt {
 	p.advance() // consume '{'
 
 	var keys []string
+	seen := make(map[string]bool)
 	if p.curToken().Type != lexer.TOKEN_RBRACE {
 		if p.curToken().Type != lexer.TOKEN_IDENT {
 			p.addError("expected key name, got %s at line %d", p.curToken().Type, p.curToken().Line)
 			return nil
 		}
+		seen[p.curToken().Literal] = true
 		keys = append(keys, p.curToken().Literal)
 		p.advance()
 		for p.curToken().Type == lexer.TOKEN_COMMA {
@@ -393,6 +395,11 @@ func (p *Parser) parseHashDeclStmt() *HashDeclStmt {
 				p.addError("expected key name, got %s at line %d", p.curToken().Type, p.curToken().Line)
 				return nil
 			}
+			if seen[p.curToken().Literal] {
+				p.addError("duplicate key %q in hashmap declaration at line %d", p.curToken().Literal, p.curToken().Line)
+				return nil
+			}
+			seen[p.curToken().Literal] = true
 			keys = append(keys, p.curToken().Literal)
 			p.advance()
 		}

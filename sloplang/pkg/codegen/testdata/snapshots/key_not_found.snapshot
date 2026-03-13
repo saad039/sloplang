@@ -1,0 +1,7 @@
+panic: sloplang: key "b" not found in hashmap
+
+goroutine 1 [running]:
+main.IndexKeyStr(0xNNN, {0xNNN, 0xNNN})
+	main.go:NNN +0xNNN
+main.main()
+	main.go:NNN +0xNNN

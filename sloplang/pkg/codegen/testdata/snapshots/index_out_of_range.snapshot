@@ -1,0 +1,7 @@
+panic: sloplang: index out of bounds: 5 (length 2)
+
+goroutine 1 [running]:
+main.Index(0xNNN, 0xNNN)
+	main.go:NNN +0xNNN
+main.main()
+	main.go:NNN +0xNNN

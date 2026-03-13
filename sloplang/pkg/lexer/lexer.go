@@ -311,8 +311,14 @@ func (l *Lexer) NextToken() Token {
 		}
 
 	case l.ch == '"':
-		tok.Type = TOKEN_STRING
-		tok.Literal = l.readString()
+		s, ok := l.readString()
+		if ok {
+			tok.Type = TOKEN_STRING
+			tok.Literal = s
+		} else {
+			tok.Type = TOKEN_ILLEGAL
+			tok.Literal = "unterminated string"
+		}
 
 	case isDigit(l.ch):
 		return l.readNumber()
@@ -361,12 +367,15 @@ func (l *Lexer) skipComment() {
 	}
 }
 
-func (l *Lexer) readString() string {
+func (l *Lexer) readString() (string, bool) {
 	l.readChar() // skip opening "
 	var result []byte
 	for l.ch != '"' && l.ch != 0 {
 		if l.ch == '\\' {
 			l.readChar()
+			if l.ch == 0 {
+				return string(result), false
+			}
 			switch l.ch {
 			case 'n':
 				result = append(result, '\n')
@@ -384,8 +393,11 @@ func (l *Lexer) readString() string {
 		}
 		l.readChar()
 	}
+	if l.ch == 0 {
+		return string(result), false
+	}
 	l.readChar() // skip closing "
-	return string(result)
+	return string(result), true
 }
 
 func (l *Lexer) readNumber() Token {
@@ -396,11 +408,39 @@ func (l *Lexer) readNumber() Token {
 		l.readChar()
 	}
 
+	isFloat := false
+
 	if l.ch == '.' && isDigit(l.peekChar()) {
 		l.readChar() // consume '.'
 		for isDigit(l.ch) {
 			l.readChar()
 		}
+		isFloat = true
+	}
+
+	// Scientific notation: e/E followed by optional +/- and digits.
+	// Only consume if there are actual digits after the e[+-]? prefix.
+	if l.ch == 'e' || l.ch == 'E' {
+		// Peek ahead to verify this is a valid exponent (not just 'e' as identifier start).
+		// We need: e[+-]?\d+ — at minimum e\d or e[+-]\d.
+		offset := l.readPos // position after 'e'
+		if offset < len(l.input) && (l.input[offset] == '+' || l.input[offset] == '-') {
+			offset++ // skip sign
+		}
+		if offset < len(l.input) && isDigit(l.input[offset]) {
+			// Valid exponent — consume e, optional sign, and digits.
+			l.readChar() // consume 'e' or 'E'
+			if l.ch == '+' || l.ch == '-' {
+				l.readChar() // consume sign
+			}
+			for isDigit(l.ch) {
+				l.readChar()
+			}
+			isFloat = true
+		}
+	}
+
+	if isFloat {
 		tok.Type = TOKEN_FLOAT
 		tok.Literal = l.input[startPos:l.pos]
 		return tok

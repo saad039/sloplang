@@ -1,0 +1,11 @@
+panic: sloplang: length mismatch: 2 vs 1
+
+goroutine 1 [running]:
+main.checkLengths(...)
+	main.go:NNN
+main.binaryOp(0xNNN, 0xNNN, 0xNNN)
+	main.go:NNN +0xNNN
+main.Add(...)
+	main.go:NNN
+main.main()
+	main.go:NNN +0xNNN

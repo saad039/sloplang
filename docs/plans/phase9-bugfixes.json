@@ -1,0 +1,86 @@
+[
+  {
+    "category": "lexer",
+    "description": "readString rejects unclosed strings at EOF instead of silently consuming",
+    "steps": [
+      "Check l.ch == 0 after readString loop exits — if true, emit TOKEN_ILLEGAL with 'unterminated string'",
+      "Remove t.Skip from TestAdv_Str_UnclosedStringEOF",
+      "Remove t.Skip from TestAdv_Str_UnclosedStringBackslash",
+      "Remove t.Skip from TestAdv_Syn_UnclosedString",
+      "Run go test ./pkg/lexer/... && go test ./pkg/codegen/... -run 'TestAdv_Str_Unclosed|TestAdv_Syn_UnclosedString'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "lexer",
+    "description": "readNumber supports scientific notation (e/E with optional sign and exponent digits)",
+    "steps": [
+      "After decimal/integer parsing in readNumber, check for e/E and consume exponent",
+      "Set token type to TOKEN_FLOAT for scientific notation literals",
+      "Remove t.Skip from TestAdv_Bound_FloatMaxVal",
+      "Remove t.Skip from TestAdv_Bound_FloatSmallestPos",
+      "Run go test ./pkg/lexer/... && go test ./pkg/codegen/... -run 'TestAdv_Bound_Float'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Mod() checks for zero divisor in int64 and uint64 cases",
+    "steps": [
+      "Add if yv == 0 panic before xv % yv in int64 case",
+      "Add if yv == 0 panic before xv % yv in uint64 case",
+      "Remove t.Skip from TestAdv_Bound_ModZeroInt",
+      "Remove t.Skip from TestAdv_Bound_ModZeroUint",
+      "Run go test ./pkg/runtime/... && go test ./pkg/codegen/... -run 'TestAdv_Bound_ModZero'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Div() detects MinInt64 / -1 overflow and panics with clean error",
+    "steps": [
+      "Add overflow check after zero check in Div int64 case: if xv == math.MinInt64 && yv == -1",
+      "Panic with 'sloplang: integer overflow: MinInt64 / -1'",
+      "Remove t.Skip from TestAdv_Bound_MinIntDivNegOne",
+      "Run go test ./pkg/runtime/... && go test ./pkg/codegen/... -run 'TestAdv_Bound_MinIntDivNegOne'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "Negate() detects MinInt64 overflow and panics with clean error",
+    "steps": [
+      "Add overflow check in Negate int64 case: if e == math.MinInt64",
+      "Panic with 'sloplang: cannot negate MinInt64: integer overflow'",
+      "Remove t.Skip from TestAdv_Bound_MinIntNegate",
+      "Run go test ./pkg/runtime/... && go test ./pkg/codegen/... -run 'TestAdv_Bound_MinIntNegate'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "codegen",
+    "description": "codegen sanitizes Go keywords in user identifiers to prevent format.Source crash",
+    "steps": [
+      "Add goKeywords set with all 25 Go keywords",
+      "Add sanitizeIdent(name) function that prefixes Go keywords with slop_",
+      "Apply sanitizeIdent at all ast.NewIdent call sites for user-defined names",
+      "Remove t.Skip from TestAdv_Id_GoKeyword_Func, _Var, _Return, _Range",
+      "Update 4 tests to expect success instead of compile error",
+      "Run go test ./pkg/codegen/... -run 'TestAdv_Id_GoKeyword'",
+      "Run full test suite: go test ./..."
+    ],
+    "passes": true
+  },
+  {
+    "category": "runtime",
+    "description": "use-before-assign produces clean panic instead of SIGSEGV",
+    "steps": [
+      "Add nil check to FormatValue: panic with 'variable used before assignment'",
+      "Add nil check to binaryOp: panic with 'variable used before assignment'",
+      "Remove t.Skip from TestAdv_Scope_UseBeforeAssign",
+      "Remove t.Skip from TestAdv_ErrRecov_UnclosedStringThenValid (fixed by unclosed string fix)",
+      "Run full test suite: go test ./..."
+    ],
+    "passes": true
+  }
+]

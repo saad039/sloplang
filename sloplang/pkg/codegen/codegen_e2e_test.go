@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -1437,6 +1438,166 @@ func runE2EExpectPanic(t *testing.T, source string) {
 	err = runCmd.Run()
 	if err == nil {
 		t.Fatal("expected program to panic/exit non-zero, but it succeeded")
+	}
+}
+
+func runE2EExpectParseError(t *testing.T, source, substringMatch string) {
+	t.Helper()
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	_, errs := p.Parse()
+	if len(errs) == 0 {
+		t.Fatal("expected parse error, but parsing succeeded")
+	}
+	if substringMatch != "" {
+		found := false
+		for _, e := range errs {
+			if strings.Contains(e, substringMatch) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected parse error containing %q, got: %v", substringMatch, errs)
+		}
+	}
+}
+
+func runE2EExpectCompileError(t *testing.T, source string) {
+	t.Helper()
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("expected successful parse, got errors: %v", errs)
+	}
+	gen := New()
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	sv, ops, io := loadRuntimeFiles(t)
+	assembled, err := AssembleWithRuntime(output, sv, ops, io)
+	if err != nil {
+		t.Fatalf("AssembleWithRuntime: %v", err)
+	}
+	tmpDir := t.TempDir()
+	goMod := "module sloprun\n\ngo 1.24\n"
+	os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "main.go"), assembled, 0644)
+	buildCmd := exec.Command("go", "build", "-o", "prog", ".")
+	buildCmd.Dir = tmpDir
+	buildOutput, buildErr := buildCmd.CombinedOutput()
+	if buildErr == nil {
+		t.Fatal("expected compile error, but go build succeeded")
+	}
+	t.Logf("compile error (expected): %s", string(buildOutput))
+}
+
+func runE2EExpectPanicContaining(t *testing.T, source, substringMatch string) {
+	t.Helper()
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	gen := New()
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	progPath, tmpDir := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
+	runCmd.Dir = tmpDir
+	combinedOutput, err := runCmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected program to panic/exit non-zero, but it succeeded")
+	}
+	if substringMatch != "" && !strings.Contains(string(combinedOutput), substringMatch) {
+		t.Fatalf("expected panic containing %q, got: %s", substringMatch, string(combinedOutput))
+	}
+}
+
+// normalizeSnapshot strips file paths and line numbers from Go panic stack traces
+// so snapshots are deterministic across runs.
+func normalizeSnapshot(output string) string {
+	// Replace /tmp/TestXxx.../001/main.go:123 with main.go:NNN
+	re := regexp.MustCompile(`/tmp/[^\s]+/main\.go:\d+`)
+	output = re.ReplaceAllString(output, "main.go:NNN")
+	// Replace hex offsets like +0x17c
+	re2 := regexp.MustCompile(`\+0x[0-9a-f]+`)
+	output = re2.ReplaceAllString(output, "+0xNNN")
+	// Replace hex memory addresses like 0xc0000a8f10 or 0x7ff13d6d32b0?
+	re3 := regexp.MustCompile(`0x[0-9a-f]+\??`)
+	output = re3.ReplaceAllString(output, "0xNNN")
+	return output
+}
+
+func runE2EExpectPanicSnapshot(t *testing.T, source, snapshotFile string) {
+	t.Helper()
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	prog, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	gen := New()
+	output, err := gen.Generate(prog)
+	if err != nil {
+		t.Fatalf("codegen error: %v", err)
+	}
+	progPath, tmpDir := compileAndRun(t, output)
+	runCmd := exec.Command(progPath)
+	runCmd.Dir = tmpDir
+	combinedOutput, err := runCmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected program to panic/exit non-zero, but it succeeded")
+	}
+	normalized := normalizeSnapshot(string(combinedOutput))
+	snapshotPath := filepath.Join("testdata", "snapshots", snapshotFile)
+	if os.Getenv("SLOP_UPDATE_SNAPSHOTS") == "1" {
+		os.MkdirAll(filepath.Dir(snapshotPath), 0755)
+		os.WriteFile(snapshotPath, []byte(normalized), 0644)
+		t.Log("snapshot updated: " + snapshotFile)
+		return
+	}
+	expected, readErr := os.ReadFile(snapshotPath)
+	if readErr != nil {
+		t.Fatalf("snapshot file %q not found — run with SLOP_UPDATE_SNAPSHOTS=1 to create", snapshotPath)
+	}
+	if normalized != string(expected) {
+		t.Fatalf("snapshot mismatch for %s:\n--- expected ---\n%s\n--- got ---\n%s", snapshotFile, string(expected), normalized)
+	}
+}
+
+func runE2EExpectParseErrorCount(t *testing.T, source string, maxErrors int, substringMatch string) {
+	t.Helper()
+	l := lexer.New(source)
+	tokens := l.Tokenize()
+	p := parser.New(tokens)
+	_, errs := p.Parse()
+	if len(errs) == 0 {
+		t.Fatal("expected parse error, but parsing succeeded")
+	}
+	if len(errs) > maxErrors {
+		t.Fatalf("expected at most %d parse errors, got %d: %v", maxErrors, len(errs), errs)
+	}
+	if substringMatch != "" {
+		found := false
+		for _, e := range errs {
+			if strings.Contains(e, substringMatch) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected parse error containing %q, got: %v", substringMatch, errs)
+		}
 	}
 }
 

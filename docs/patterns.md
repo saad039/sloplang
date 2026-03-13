@@ -27,6 +27,7 @@
 
 - **Adding multi-char operators can break existing semantics.** When `--` was added as `TOKEN_REMOVE` in Phase 4, the existing `--[5]` (double unary negate) broke because the lexer now greedily matches `--` as one token. The fix: double negate must be written as `-(-[5])`. Any existing tests relying on the old behavior must be updated.
 - **Operator disambiguation order matters.** Multi-char operators (e.g., `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`) must be checked before their single-char prefixes. Always peek before emitting the single-char token.
+- **String-reading helpers must detect EOF and signal errors.** `readString()` returns `(string, bool)` — `false` means EOF was hit before a closing `"`. The caller emits `TOKEN_ILLEGAL` with literal `"unterminated string"`, which the parser already rejects.
 
 ## Parser
 
@@ -71,3 +72,4 @@
 - **`SLOP_MODULE_ROOT` env var** allows the CLI to find the sloplang module root from temp directories. The test harness sets this so `slop` can build programs in temp dirs.
 - **Test template substitution pattern.** `.slop` programs use `SIZE_PLACEHOLDER` which the Go test replaces with actual sizes. `buildSource()` handles this.
 - **Stale transpiled `.go` files in `examples/`** will cause `go test ./...` to fail if they reference old APIs. Delete them when changing runtime/codegen.
+- **Go keyword sanitization in codegen.** User-defined identifiers that collide with Go's 25 keywords (e.g., `func`, `var`, `return`, `range`) must be prefixed with `slop_` via `sanitizeIdent()` at every `ast.NewIdent` call site that emits a user-defined name. This includes variable declarations, assignments, function declarations, parameter names, for-in loop variables, multi-assign names, identifier expression references, and user-defined function calls. Do NOT sanitize hardcoded Go names like runtime functions, type names, `"_"`, `"main"`, `"nil"`.
