@@ -70,7 +70,7 @@ Everything is symbolic. No method calls. No `.length`. No `.push()`. Just symbol
 | `<<` | Push | `arr << [5]` |
 | `<<<` | Nested push | `arr <<< [3,4]` -> `[..., [3, 4]]` |
 | `>>` | Pop (prefix) | `x = >>arr` |
-| `~@` | Remove at index | `arr ~@ [1]` |
+| `~@` | Remove at index/key | `arr ~@ [1]`, `map ~@ "key"` |
 | `::` | Slice | `arr::1::4` |
 | `++` | Concat | `[1,2] ++ [3,4]` |
 | `--` | Remove value | `arr -- [5]` |

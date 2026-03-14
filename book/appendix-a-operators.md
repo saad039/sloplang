@@ -28,7 +28,7 @@
 | `<<` | Push | `arr << val` | `arr << [5]` | appends `[5]` to `arr` | Yes |
 | `<<<` | Nested push | `arr <<< val` | `arr <<< [5]` | appends `[5]` as nested element | Yes |
 | `>>` | Pop (unary prefix) | `>>arr` | `x = >>arr` | removes and returns last element | Yes |
-| `~@` | Remove at index | `arr ~@ idx` | `arr ~@ [2]` | removes and returns element at index 2 | Yes |
+| `~@` | Remove at index/key | `arr ~@ idx`, `map ~@ "key"` | `arr ~@ [2]`, `map ~@ "name"` | int: removes element at index; string: removes key from hashmap. Returns removed value | Yes |
 | `::` | Slice | `arr::start::end` | `arr::[1]::[4]` | elements at indices 1, 2, 3 | No |
 | `++` | Concat | `a ++ b` | `[1, 2] ++ [3, 4]` | `[1, 2, 3, 4]` | No |
 | `--` | Remove value | `arr -- val` | `arr -- [5]` | new array with first occurrence of `[5]` removed | No |

@@ -465,3 +465,55 @@ func TestSem_Mut_RemoveAt_ReturnValue(t *testing.T) {
 		t.Fatalf("expected %q, got %q", "[20]", got)
 	}
 }
+
+// --- ~@ on hashmaps (key deletion) ---
+
+func TestSem_Mut_RemoveAt_HashmapKey(t *testing.T) {
+	got := runE2E(t, `m{name, age} = ["bob", [30]]
+m ~@ "name"
+|> str(##m)
+|> " "
+|> str(@@m)`)
+	if got != "age [[30]]" {
+		t.Fatalf("expected %q, got %q", "age [[30]]", got)
+	}
+}
+
+func TestSem_Mut_RemoveAt_HashmapKeyReturnsValue(t *testing.T) {
+	got := runE2E(t, `m{name, age} = ["bob", [30]]
+removed = m ~@ "age"
+|> str(removed)`)
+	if got != "[30]" {
+		t.Fatalf("expected %q, got %q", "[30]", got)
+	}
+}
+
+func TestSem_Mut_RemoveAt_HashmapKeyReturnsString(t *testing.T) {
+	got := runE2E(t, `m{name, age} = ["bob", [30]]
+removed = m ~@ "name"
+|> str(removed)`)
+	if got != "bob" {
+		t.Fatalf("expected %q, got %q", "bob", got)
+	}
+}
+
+func TestSem_Mut_RemoveAt_HashmapKeyNotFound_Panics(t *testing.T) {
+	runE2EExpectPanic(t, `m{name, age} = ["bob", [30]]
+m ~@ "missing"`)
+}
+
+func TestSem_Mut_RemoveAt_HashmapKeyNotHashmap_Panics(t *testing.T) {
+	runE2EExpectPanic(t, `arr = [1, 2, 3]
+arr ~@ "name"`)
+}
+
+func TestSem_Mut_RemoveAt_HashmapLastKey(t *testing.T) {
+	got := runE2E(t, `m{only} = ["val"]
+m ~@ "only"
+|> str(##m)
+|> " "
+|> str(@@m)`)
+	if got != "[] []" {
+		t.Fatalf("expected %q, got %q", "[] []", got)
+	}
+}

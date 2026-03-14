@@ -196,7 +196,7 @@ All operations are functions that take/return `*SlopValue`:
 | `Length(sv)` | No | Returns `[len]` |
 | `Push(sv, val)` | Yes | Appends val's elements |
 | `Pop(sv)` | Yes | Removes+returns last element |
-| `RemoveAt(sv, idx)` | Yes | Removes+returns element at index |
+| `RemoveAt(sv, idx)` | Yes | int: removes+returns element at index; string: removes+returns value for hashmap key |
 | `Slice(sv, lo, hi)` | No | Returns sub-array `[lo:hi)` |
 | `Concat(a, b)` | No | Returns new combined array |
 | `Remove(sv, val)` | No | Returns new array without first occurrence |

@@ -515,24 +515,45 @@ func Pop(sv *SlopValue) *SlopValue {
 	return NewSlopValue(last)
 }
 
-// RemoveAt removes the element at the given index and returns it. Mutates sv.
+// RemoveAt removes an element by index (int64) or a key-value pair by key (string).
+// Returns the removed value. Mutates sv.
 func RemoveAt(sv *SlopValue, idx *SlopValue) *SlopValue {
 	if len(idx.Elements) != 1 {
-		panic("sloplang: index must be a single-element int64 array")
+		panic("sloplang: ~@ requires a single-element array (int index or string key)")
 	}
-	i, ok := idx.Elements[0].(int64)
-	if !ok {
-		panic(fmt.Sprintf("sloplang: index must be int64, got %T", idx.Elements[0]))
+	switch key := idx.Elements[0].(type) {
+	case int64:
+		if key < 0 || int(key) >= len(sv.Elements) {
+			panic(fmt.Sprintf("sloplang: index out of bounds: %d (length %d)", key, len(sv.Elements)))
+		}
+		removed := sv.Elements[key]
+		sv.Elements = append(sv.Elements[:key], sv.Elements[key+1:]...)
+		if sv.Keys != nil && int(key) < len(sv.Keys) {
+			sv.Keys = append(sv.Keys[:key], sv.Keys[key+1:]...)
+		}
+		if nested, ok := removed.(*SlopValue); ok {
+			return nested
+		}
+		return NewSlopValue(removed)
+	case string:
+		if sv.Keys == nil {
+			panic(fmt.Sprintf("sloplang: key %q not found — not a hashmap", key))
+		}
+		for i, k := range sv.Keys {
+			if k == key {
+				removed := sv.Elements[i]
+				sv.Elements = append(sv.Elements[:i], sv.Elements[i+1:]...)
+				sv.Keys = append(sv.Keys[:i], sv.Keys[i+1:]...)
+				if nested, ok := removed.(*SlopValue); ok {
+					return nested
+				}
+				return NewSlopValue(removed)
+			}
+		}
+		panic(fmt.Sprintf("sloplang: key %q not found in hashmap", key))
+	default:
+		panic(fmt.Sprintf("sloplang: ~@ requires int index or string key, got %T", idx.Elements[0]))
 	}
-	if i < 0 || int(i) >= len(sv.Elements) {
-		panic(fmt.Sprintf("sloplang: index out of bounds: %d (length %d)", i, len(sv.Elements)))
-	}
-	removed := sv.Elements[i]
-	sv.Elements = append(sv.Elements[:i], sv.Elements[i+1:]...)
-	if nested, ok := removed.(*SlopValue); ok {
-		return nested
-	}
-	return NewSlopValue(removed)
 }
 
 // Slice returns a new SlopValue with elements from low to high (exclusive).

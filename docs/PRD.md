@@ -134,7 +134,7 @@ Strict truthiness: only `[1]` is truthy, only `[]` (empty array) is falsy. `[0]`
 | `<<` | Push | `arr << [5]` |
 | `<<<` | Nested push | `arr <<< [5]` (appends as single nested element, never spreads) |
 | `>>` | Pop (prefix) | `x = >>arr` (removes + returns last element) |
-| `~@` | Remove at index | `x = arr ~@ 2` (removes + returns element at index 2) |
+| `~@` | Remove at index/key | `x = arr ~@ 2` (removes + returns element at index 2), `x = map ~@ "key"` (removes + returns value for key) |
 | `::` | Slice | `arr::1::4` (elements at indices 1, 2, 3) |
 | `++` | Concat | `[1,2] ++ [3,4]` -> `[1,2,3,4]` |
 | `--` | Remove value | `arr -- [5]` (removes first occurrence) |
