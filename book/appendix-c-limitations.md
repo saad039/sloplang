@@ -216,7 +216,15 @@ if op == "add" {
 
 ---
 
-### 22. Hashmaps compare keys in insertion order for `==`
+### 22. No command-line argument access
+
+**Limitation:** There is no built-in way to access command-line arguments. The `slop` CLI takes a source file but does not pass remaining arguments to the running program. There is no `os.Args` equivalent.
+
+**Workaround:** Read input from stdin (`<|`) or from a configuration file (`<. "config.txt"`).
+
+---
+
+### 23. Hashmaps compare keys in insertion order for `==`
 
 **Limitation:** Two hashmaps with the same keys and values but inserted in different orders may not compare as equal with `==`, because key comparison walks the key array in insertion order.
 
