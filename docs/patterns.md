@@ -28,6 +28,7 @@
 - **Adding multi-char operators can break existing semantics.** When `--` was added as `TOKEN_REMOVE` in Phase 4, the existing `--[5]` (double unary negate) broke because the lexer now greedily matches `--` as one token. The fix: double negate must be written as `-(-[5])`. Any existing tests relying on the old behavior must be updated.
 - **Operator disambiguation order matters.** Multi-char operators (e.g., `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`) must be checked before their single-char prefixes. Always peek before emitting the single-char token.
 - **String-reading helpers must detect EOF and signal errors.** `readString()` returns `(string, bool)` — `false` means EOF was hit before a closing `"`. The caller emits `TOKEN_ILLEGAL` with literal `"unterminated string"`, which the parser already rejects.
+- **Triple-char operators need greedy check before double-char.** `<<<` must be checked before `<<` in the `<` disambiguation chain. The lexer peeks after consuming `<<` — if the next char is `<`, consume it and emit `TOKEN_NEST_PUSH`; otherwise emit `TOKEN_LSHIFT`.
 
 ## Parser
 

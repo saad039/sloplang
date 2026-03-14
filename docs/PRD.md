@@ -132,6 +132,7 @@ Strict truthiness: only `[1]` is truthy, only `[]` (empty array) is falsy. `[0]`
 | `@` | Index / Key | `arr@0` (numeric index), `map@name` (literal string key) |
 | `$` | Dynamic access | `map$var` (dispatches: int→index, string→key lookup) |
 | `<<` | Push | `arr << [5]` |
+| `<<<` | Nested push | `arr <<< [5]` (appends as single nested element, never spreads) |
 | `>>` | Pop (prefix) | `x = >>arr` (removes + returns last element) |
 | `~@` | Remove at index | `x = arr ~@ 2` (removes + returns element at index 2) |
 | `::` | Slice | `arr::1::4` (elements at indices 1, 2, 3) |
@@ -222,6 +223,10 @@ Functions are **not** first-class values. They cannot be stored in variables, pa
 | `split(str, sep)` | Split string by separator, returns array of strings |
 | `str(val)` | Convert value to string — single-element strings return raw string, everything else uses bracket notation (`[42]`, `[1, 2]`, `[null]`, `[]`) |
 | `to_num(str)` | Convert string to number — dual return `(val, err)`, err `[0]` = success, `[1]` = failure |
+| `to_chars(str)` | Split string into array of single-character strings — `to_chars("hello")` -> `["h", "e", "l", "l", "o"]`. Panics if argument is not a string |
+| `to_int(val)` | Convert single-element numeric or string value to int64 — float64 is truncated toward zero. Panics on invalid input |
+| `to_float(val)` | Convert single-element numeric or string value to float64. Panics on invalid input |
+| `fmt_float(val, decimals)` | Format numeric value as string with fixed decimal places — `fmt_float([3.14], [2])` -> `"3.14"`. Panics on invalid input |
 
 ## Control Flow
 

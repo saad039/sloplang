@@ -26,6 +26,7 @@
 | `$` | Dynamic access (read) | `arr$var` | `arr$i` | index or key depending on type of `i` | No |
 | `$` | Dynamic access (set) | `arr$var = val` | `arr$i = [99]` | assigns by index or key | Yes |
 | `<<` | Push | `arr << val` | `arr << [5]` | appends `[5]` to `arr` | Yes |
+| `<<<` | Nested push | `arr <<< val` | `arr <<< [5]` | appends `[5]` as nested element | Yes |
 | `>>` | Pop (unary prefix) | `>>arr` | `x = >>arr` | removes and returns last element | Yes |
 | `~@` | Remove at index | `arr ~@ idx` | `arr ~@ [2]` | removes and returns element at index 2 | Yes |
 | `::` | Slice | `arr::start::end` | `arr::[1]::[4]` | elements at indices 1, 2, 3 | No |
@@ -52,3 +53,4 @@
 - `~@` returns the removed element and mutates the array; `::`, `++`, `~` return new arrays.
 - `|>` does not append a trailing newline. Use `|> "\n"` when a newline is needed.
 - `.>` and `.>>` panic on write error (no dual-return). Ensure the path is writable before using them.
+- `<<<` always nests: `arr <<< [3, 4]` appends `[3, 4]` as one nested element, producing `[..., [3, 4]]`. Contrast with `<<` which spreads elements individually.

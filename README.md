@@ -68,6 +68,7 @@ Everything is symbolic. No method calls. No `.length`. No `.push()`. Just symbol
 | `@` | Index / key access | `arr@0`, `map@name` |
 | `$` | Dynamic access | `arr$i` (int->index, string->key) |
 | `<<` | Push | `arr << [5]` |
+| `<<<` | Nested push | `arr <<< [3,4]` -> `[..., [3, 4]]` |
 | `>>` | Pop (prefix) | `x = >>arr` |
 | `~@` | Remove at index | `arr ~@ [1]` |
 | `::` | Slice | `arr::1::4` |
@@ -188,6 +189,7 @@ docs/
 - **File and stdin I/O** — `<.`, `.>`, `.>>`, `<|` operators
 - **Scientific notation** — `[1.79e308]`, `[5e-324]` float literals
 - **Go keyword safety** — sloplang variables can use Go keywords (`func`, `var`, `range`, etc.) without conflict
+- **Type casting builtins** — `to_chars`, `to_int`, `to_float`, `fmt_float` for string decomposition, numeric conversion, and float formatting
 - **Clean error messages** — division by zero, modulo by zero, integer overflow, type mismatches, and use-before-assign all produce readable sloplang errors instead of raw Go panics
 
 ## License

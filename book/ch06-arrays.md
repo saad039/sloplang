@@ -57,7 +57,7 @@ k = "x"
 
 Use `@N` when the index is a compile-time constant, and `$var` when the index or key is computed at runtime.
 
-## 6.3 Mutating Arrays: `<<`, `>>`, `~@`, index-set
+## 6.3 Mutating Arrays: `<<`, `<<<`, `>>`, `~@`, index-set
 
 ### Push (`<<`)
 
@@ -70,7 +70,26 @@ arr << [3, 4]
 |> "\n"
 ```
 
-> **Pitfall:** `<<` spreads its right operand. `arr << [3, 4]` adds integers 3 and 4 separately — not `[3, 4]` as a single nested element. There is no operation to push a sub-array as a single nested element; nested arrays must be created with literal syntax.
+> **Pitfall:** `<<` spreads its right operand. `arr << [3, 4]` adds integers 3 and 4 separately — not `[3, 4]` as a single nested element. To push a sub-array as a single nested element, use `<<<` (see below).
+
+### Nested Push (`<<<`)
+
+`arr <<< rhs` appends `rhs` as a single nested element to `arr`. Unlike `<<` which spreads, `<<<` always nests — the entire right-hand side becomes one element.
+
+```
+arr = [1, 2]
+arr <<< [3, 4]
+|> str(arr)
+|> "\n"
+// [1, 2, [3, 4]]
+```
+
+| Operation | `<<` (spread) | `<<<` (nest) |
+|-----------|--------------|--------------|
+| `[1,2] _ [3,4]` | `[1, 2, 3, 4]` | `[1, 2, [3, 4]]` |
+| `[1,2] _ [42]` | `[1, 2, 42]` | `[1, 2, [42]]` |
+| `[1,2] _ "hi"` | `[1, 2, hi]` | `[1, 2, [hi]]` |
+| `[] _ [1]` | `[1]` | `[[1]]` |
 
 ### Pop (`>>`)
 
@@ -292,9 +311,25 @@ for row in matrix {
 // [5, 6]
 ```
 
-Nested arrays must be created with literal syntax. Because `<<` spreads its operand, pushing `[1, 2, 3]` with `<<` would append 1, 2, and 3 as separate elements rather than as a single nested row. Use `[[1, 2], [3, 4]]` notation for matrix literals.
+Nested arrays can be created with literal syntax or with `<<<`. Because `<<` spreads its operand, pushing `[1, 2, 3]` with `<<` would append 1, 2, and 3 as separate elements rather than as a single nested row. Use `[[1, 2], [3, 4]]` notation for matrix literals, or `<<<` to dynamically nest a sub-array.
 
-## 6.8 Common Patterns and Idioms
+## 6.8 Aliasing and Pointer Sharing
+
+When you extract a nested array via `@` or `$`, you get a reference to the same underlying value — not a copy. Mutating the extracted value with `<<`, `>>`, `~@`, or `<<<` also mutates the original.
+
+```
+matrix = [[1, 2], [3, 4]]
+row = matrix@0
+row << [99]
+|> str(matrix@0)   // [1, 2, 99] — row and matrix@0 share the same value
+|> "\n"
+```
+
+This is because sloplang arrays store elements as Go `interface{}` values. When an element is itself a `*SlopValue` (a nested array), extracting it gives you the pointer, not a deep copy. This applies to all mutating operators.
+
+If you need an independent copy, there is no built-in clone operation. Reconstruct the array manually.
+
+## 6.9 Common Patterns and Idioms
 
 ### Filter
 

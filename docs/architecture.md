@@ -75,7 +75,7 @@ Token types cover: literals (INT, UINT, FLOAT, STRING, IDENT), operators (arithm
 
 Two interfaces: `Stmt` (statements) and `Expr` (expressions).
 
-**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynAccessSetStmt, FileWriteStmt, FileAppendStmt
+**Statements:** AssignStmt, StdoutWriteStmt, FnDeclStmt, IfStmt, ForInStmt, ForLoopStmt, BreakStmt, ReturnStmt, MultiAssignStmt, ExprStmt, PushStmt, NestPushStmt, IndexSetStmt, HashDeclStmt, KeySetStmt, DynAccessSetStmt, FileWriteStmt, FileAppendStmt
 
 **Expressions:** ArrayLiteral, NumberLiteral, StringLiteral, NullLiteral, Identifier, BinaryExpr, UnaryExpr, CallExpr, IndexExpr, PopExpr, SliceExpr, KeyAccessExpr, DynAccessExpr, StdinReadExpr, FileReadExpr
 
@@ -83,7 +83,7 @@ Two interfaces: `Stmt` (statements) and `Expr` (expressions).
 
 Single-pass, character-by-character tokenizer. Key design decisions:
 
-- **Greedy multi-char matching:** `##`, `@@`, `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`, `**`, `==`, `!=`, `<=`, `>=`, `<-`, `<|`, `<.`, `|>`, `||`, `&&`, `.>`, `.>>` are checked before their single-char prefixes
+- **Greedy multi-char matching:** `##`, `@@`, `<<<`, `<<`, `>>`, `++`, `--`, `~@`, `::`, `??`, `**`, `==`, `!=`, `<=`, `>=`, `<-`, `<|`, `<.`, `|>`, `||`, `&&`, `.>`, `.>>` are checked before their single-char prefixes. `<<<` (`TOKEN_NEST_PUSH`) is checked before `<<` to avoid greedy mismatch.
 - **Keywords via map lookup:** `LookupIdent()` checks the `keywords` map, falling back to `TOKEN_IDENT`
 - **Number disambiguation:** digits followed by `u` → UINT, digits with `.` → FLOAT, else INT
 - **String escapes:** `\n`, `\t`, `\\`, `\"`
@@ -119,6 +119,7 @@ Recursive descent with Pratt-style precedence for expressions.
   - `,` → multi-assign
   - `=` → assign
   - `<<` → push statement
+  - `<<<` → nested push statement
   - `$` → lookahead for dyn-access-set (`ident$var = val`)
   - `@` → lookahead for index-set / key-set vs expression
   - `{` after ident → hashmap declaration (`name{k1, k2} = [v1, v2]`)
@@ -166,7 +167,7 @@ func main() {
 - **Variable tracking:** `declared map[string]bool` — first use emits `:=`, subsequent uses emit `=`
 - **Scope isolation with global seeding:** `lowerFnDecl` saves/restores `declared`. The new scope is seeded with globals (so assignments to global names use `=`) and params (pre-registered as declared). New names inside functions use `:=` (local).
 - **Unused variable suppression:** Every `:=` declaration followed by `_ = varName`
-- **Builtin dispatch:** `CallExpr` checks builtin map (`str` → `sloprt.Str`, `split` → `sloprt.Split`, `to_num` → `sloprt.ToNum`), else emits direct Go function call
+- **Builtin dispatch:** `CallExpr` checks builtin map (`str` → `sloprt.Str`, `split` → `sloprt.Split`, `to_num` → `sloprt.ToNum`, `to_chars` → `sloprt.ToChars`, `to_int` → `sloprt.ToInt`, `to_float` → `sloprt.ToFloat`, `fmt_float` → `sloprt.FmtFloat`), else emits direct Go function call
 - **Dual-return detection:** `isDualReturn()` identifies expressions that return two values (StdinReadExpr, FileReadExpr, `to_num` calls) — these skip `UnpackTwo` wrapping in `lowerMultiAssign`
 - **Binary op map:** Maps sloplang operators to runtime function names (e.g., `"+"` → `"Add"`, `"++"` → `"Concat"`)
 - **Unary op dispatch:** `-` → `Negate`, `!` → `Not`, `#` → `Length`, `~` → `Unique`, `##` → `MapKeys`, `@@` → `MapValues`
@@ -201,6 +202,7 @@ All operations are functions that take/return `*SlopValue`:
 | `Remove(sv, val)` | No | Returns new array without first occurrence |
 | `Contains(sv, val)` | No | Returns `[1]` or `[]` |
 | `Unique(sv)` | No | Returns deduplicated array |
+| `NestPush(sv, val)` | Yes | Appends val as a single nested element (no spread) |
 
 ### Dynamic access (type-dispatching)
 | Function | Description |
@@ -228,6 +230,14 @@ All operations are functions that take/return `*SlopValue`:
 | `FileAppend(path, data)` | void | Appends data to file; panics on error |
 | `Split(sv, sep)` | `*SlopValue` | Splits string by separator; empty sep returns original |
 | `ToNum(sv)` | `(*SlopValue, *SlopValue)` | Parses string to int64/float64; returns `(val, [0])` or `([], [1])` |
+
+### Type Casting & Formatting
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `ToChars(sv)` | `*SlopValue` | Decomposes a string into an array of single-character strings |
+| `ToInt(sv)` | `*SlopValue` | Converts float64 to int64 (truncates); panics if not a float |
+| `ToFloat(sv)` | `*SlopValue` | Converts int64 to float64; panics if not an int |
+| `FmtFloat(sv, fmt)` | `*SlopValue` | Formats a float with a format string (e.g., `"%.2f"`) |
 
 ### Helpers
 - `Str(sv)` — converts to string representation
@@ -293,3 +303,4 @@ Test naming convention: `TestSem_<Domain>_<Case>` (e.g., `TestSem_Mut_IndexSet_S
 | 7 | Error Handling Patterns | Done |
 | 7.5 | Syntax Strictness Refactor + Semantic E2E Tests (355 tests) | Done |
 | 8 | Real Programs (10 programs + E2E tests) | Done |
+| 10 | Nested Push (`<<<`) + Type Casting Builtins (`to_chars`, `to_int`, `to_float`, `fmt_float`) | Done |

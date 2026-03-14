@@ -748,7 +748,24 @@ func Push(sv *SlopValue, val *SlopValue) *SlopValue {
 }
 ```
 
-After `arr << [1, 2]`, `arr` gains two new elements (`1` and `2`), not one new element (`[1, 2]`). This also explains the behavior of `++` (Concat), which does the same thing on a new allocation:
+After `arr << [1, 2]`, `arr` gains two new elements (`1` and `2`), not one new element (`[1, 2]`).
+
+Mutating operators (`<<`, `>>`, `~@`, `<<<`) modify the `*SlopValue` in place through pointer sharing. When a nested array is extracted via `@` or `$`, both the original and the extracted variable point to the same `*SlopValue`. This means mutations through either reference are visible from both.
+
+### NestPush
+
+`NestPush` implements the `<<<` operator. Unlike `Push` which spreads elements, `NestPush` appends the entire `val` as a single nested element:
+
+```go
+func NestPush(sv *SlopValue, val *SlopValue) *SlopValue {
+    sv.Elements = append(sv.Elements, val)
+    return sv
+}
+```
+
+`arr <<< [3, 4]` makes `[3, 4]` a single nested element in `arr`, producing `[..., [3, 4]]`.
+
+This also explains the behavior of `++` (Concat), which does the same thing as `Push` but on a new allocation:
 
 ```go
 func Concat(a, b *SlopValue) *SlopValue {

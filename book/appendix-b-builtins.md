@@ -1,6 +1,6 @@
 # Appendix B: Built-in Functions
 
-Sloplang provides four built-in functions. They cannot be redefined or shadowed.
+Sloplang provides eight built-in functions. They cannot be redefined or shadowed.
 
 ---
 
@@ -114,3 +114,93 @@ exit([2])    // specific error code
 - The program stops immediately. There is no deferred cleanup in sloplang.
 - `exit` does not return, so any code after it is unreachable.
 - Use `exit` when you need to terminate from deep inside a function without threading return values back up through the call stack. For recoverable errors, prefer the dual-return pattern with `<-`.
+
+---
+
+## `to_chars(str)`
+
+**Signature:** `to_chars(str) -> array`
+
+**Description:** Splits a string into an array of single-character strings using Unicode rune iteration.
+
+**Returns:** Always succeeds. Returns an array of single-character strings.
+
+**Examples:**
+
+| Call | Result |
+|------|--------|
+| `to_chars("hello")` | `["h", "e", "l", "l", "o"]` |
+| `to_chars("")` | `[]` |
+
+**Notes:**
+
+- Panics on non-string input.
+- Not dual-return.
+
+---
+
+## `to_int(val)`
+
+**Signature:** `to_int(val) -> [int]`
+
+**Description:** Converts a numeric or string value to `int64`. `float64` values are truncated toward zero.
+
+**Returns:** Always succeeds on valid input. Returns a single-element `int64` array.
+
+**Examples:**
+
+| Call | Result |
+|------|--------|
+| `to_int([3.14])` | `[3]` |
+| `to_int("5")` | `[5]` |
+| `to_int([-2.9])` | `[-2]` |
+
+**Notes:**
+
+- Panics on invalid input.
+- Not dual-return.
+
+---
+
+## `to_float(val)`
+
+**Signature:** `to_float(val) -> [float]`
+
+**Description:** Converts a numeric or string value to `float64`.
+
+**Returns:** Always succeeds on valid input. Returns a single-element `float64` array.
+
+**Examples:**
+
+| Call | Result |
+|------|--------|
+| `to_float([42])` | `[42]` (stored as float64) |
+| `to_float("2.5")` | `[2.5]` |
+
+**Notes:**
+
+- Panics on invalid input.
+- Not dual-return.
+
+---
+
+## `fmt_float(val, decimals)`
+
+**Signature:** `fmt_float(val, decimals) -> string`
+
+**Description:** Formats a numeric value as a string with fixed decimal places.
+
+**Returns:** Always succeeds on valid input. Returns a string.
+
+**Examples:**
+
+| Call | Result |
+|------|--------|
+| `fmt_float([3.14159], [2])` | `"3.14"` |
+| `fmt_float([42], [3])` | `"42.000"` |
+| `fmt_float([1.0], [0])` | `"1"` |
+
+**Notes:**
+
+- Panics if the first argument is not numeric or the second argument is not a non-negative integer.
+- Not dual-return.

@@ -10,7 +10,7 @@
       "E2E: to_chars('hello') produces [h, e, l, l, o]",
       "Codegen maps to_chars to ToChars in builtins"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "runtime",
@@ -24,7 +24,7 @@
       "E2E: to_int([3.14]) produces [3]",
       "Codegen maps to_int to ToInt in builtins"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "runtime",
@@ -39,7 +39,7 @@
       "E2E: arithmetic works after to_float conversion",
       "Codegen maps to_float to ToFloat in builtins"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "runtime",
@@ -54,7 +54,7 @@
       "E2E: fmt_float([3.14159], [2]) produces '3.14'",
       "Codegen maps fmt_float to FmtFloat in builtins"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "lexer",
@@ -65,7 +65,7 @@
       "Lexer disambiguates << vs <<< correctly when adjacent",
       "Existing << tests continue to pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "parser",
@@ -76,7 +76,7 @@
       "parseNestPushStmt follows parsePushStmt pattern",
       "Existing parser tests continue to pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "codegen",
@@ -90,7 +90,7 @@
       "E2E: << still spreads, <<< nests in same program",
       "E2E: <<< into empty array produces nested result"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
@@ -101,7 +101,7 @@
       "No skipped tests",
       "0 failures"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",
@@ -115,6 +115,6 @@
       "README updated with <<< and new builtins",
       "architecture.md updated for phase 10"
     ],
-    "passes": false
+    "passes": true
   }
 ]
