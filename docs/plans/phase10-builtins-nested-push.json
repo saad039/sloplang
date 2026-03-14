@@ -1,0 +1,120 @@
+[
+  {
+    "category": "runtime",
+    "description": "to_chars builtin decomposes string into character array",
+    "steps": [
+      "ToChars handles ASCII strings correctly",
+      "ToChars handles Unicode strings with rune iteration",
+      "ToChars returns empty array for empty string",
+      "ToChars panics on non-string input (int, null, multi-element)",
+      "E2E: to_chars('hello') produces [h, e, l, l, o]",
+      "Codegen maps to_chars to ToChars in builtins"
+    ],
+    "passes": false
+  },
+  {
+    "category": "runtime",
+    "description": "to_int builtin converts numeric/string values to int64",
+    "steps": [
+      "ToInt truncates float64 toward zero",
+      "ToInt passes through int64 unchanged",
+      "ToInt converts uint64 to int64, panics on overflow",
+      "ToInt parses string to int64",
+      "ToInt panics on null, multi-element, invalid string",
+      "E2E: to_int([3.14]) produces [3]",
+      "Codegen maps to_int to ToInt in builtins"
+    ],
+    "passes": false
+  },
+  {
+    "category": "runtime",
+    "description": "to_float builtin converts numeric/string values to float64",
+    "steps": [
+      "ToFloat converts int64 to float64",
+      "ToFloat passes through float64 unchanged",
+      "ToFloat converts uint64 to float64",
+      "ToFloat parses string to float64",
+      "ToFloat panics on null, multi-element, invalid string",
+      "E2E: to_float([42]) produces [42] stored as float64",
+      "E2E: arithmetic works after to_float conversion",
+      "Codegen maps to_float to ToFloat in builtins"
+    ],
+    "passes": false
+  },
+  {
+    "category": "runtime",
+    "description": "fmt_float builtin formats float with fixed decimal places",
+    "steps": [
+      "FmtFloat formats float64 with specified decimals",
+      "FmtFloat promotes int64 to float64 for formatting",
+      "FmtFloat handles 0 decimals correctly",
+      "FmtFloat handles negative values",
+      "FmtFloat panics on non-numeric first arg",
+      "FmtFloat panics on negative decimals",
+      "E2E: fmt_float([3.14159], [2]) produces '3.14'",
+      "Codegen maps fmt_float to FmtFloat in builtins"
+    ],
+    "passes": false
+  },
+  {
+    "category": "lexer",
+    "description": "TOKEN_NEST_PUSH (<<<) is tokenized correctly",
+    "steps": [
+      "Lexer produces TOKEN_NEST_PUSH for <<<",
+      "Lexer still produces TOKEN_LSHIFT for <<",
+      "Lexer disambiguates << vs <<< correctly when adjacent",
+      "Existing << tests continue to pass"
+    ],
+    "passes": false
+  },
+  {
+    "category": "parser",
+    "description": "NestPushStmt AST node is parsed from ident <<< expr",
+    "steps": [
+      "Parser produces NestPushStmt for ident <<< expr",
+      "PushStmt still works for ident << expr",
+      "parseNestPushStmt follows parsePushStmt pattern",
+      "Existing parser tests continue to pass"
+    ],
+    "passes": false
+  },
+  {
+    "category": "codegen",
+    "description": "NestPushStmt lowers to NestPush runtime call",
+    "steps": [
+      "Codegen lowers NestPushStmt to NestPush(obj, val)",
+      "NestPush appends val as nested element (not spread)",
+      "E2E: arr <<< [3,4] produces [1,2,[3,4]]",
+      "E2E: arr <<< [42] produces nested [42]",
+      "E2E: arr <<< 'hello' produces nested [hello]",
+      "E2E: << still spreads, <<< nests in same program",
+      "E2E: <<< into empty array produces nested result"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "full test suite passes after phase 10 changes",
+    "steps": [
+      "All 1450+ existing tests still pass",
+      "All ~40 new phase 10 tests pass",
+      "No skipped tests",
+      "0 failures"
+    ],
+    "passes": false
+  },
+  {
+    "category": "docs",
+    "description": "PRD, book, README, and architecture updated for phase 10",
+    "steps": [
+      "PRD updated with <<< operator and new builtins",
+      "Appendix A updated with <<< operator entry",
+      "Appendix B updated with to_chars, to_int, to_float, fmt_float entries",
+      "ch06-arrays.md documents pointer-sharing semantics and <<< operator",
+      "ch12-transpiler.md corrects pointer-sharing statement and adds NestPush docs",
+      "README updated with <<< and new builtins",
+      "architecture.md updated for phase 10"
+    ],
+    "passes": false
+  }
+]
