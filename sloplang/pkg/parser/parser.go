@@ -57,6 +57,9 @@ func (p *Parser) parseStatement() Stmt {
 		if p.peekToken().Type == lexer.TOKEN_LSHIFT {
 			return p.parsePushStmt()
 		}
+		if p.peekToken().Type == lexer.TOKEN_NEST_PUSH {
+			return p.parseNestPushStmt()
+		}
 		if p.peekToken().Type == lexer.TOKEN_DOLLAR {
 			// Dynamic access set: ident $ ident =
 			saved := p.save()
@@ -166,6 +169,20 @@ func (p *Parser) parsePushStmt() *PushStmt {
 		return nil
 	}
 	return &PushStmt{Object: &Identifier{Name: name}, Value: value}
+}
+
+func (p *Parser) parseNestPushStmt() *NestPushStmt {
+	name := p.curToken().Literal
+	p.advance() // consume ident
+	p.advance() // consume <<<
+	value := p.parseExpression()
+	if value == nil {
+		return nil
+	}
+	return &NestPushStmt{
+		Object: &Identifier{Name: name},
+		Value:  value,
+	}
 }
 
 func (p *Parser) parseAssignStatement() *AssignStmt {

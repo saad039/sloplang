@@ -715,6 +715,62 @@ func TestLexer_DotDisambiguation(t *testing.T) {
 	}
 }
 
+// --- Test helpers for compact token assertions ---
+
+type TokenExpect struct {
+	Type    TokenType
+	Literal string
+}
+
+func tokenize(t *testing.T, input string) []Token {
+	t.Helper()
+	l := New(input)
+	var tokens []Token
+	for {
+		tok := l.NextToken()
+		if tok.Type == TOKEN_EOF {
+			break
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens
+}
+
+func expectTokens(t *testing.T, got []Token, expected []TokenExpect) {
+	t.Helper()
+	if len(got) != len(expected) {
+		t.Fatalf("expected %d tokens, got %d", len(expected), len(got))
+	}
+	for i, exp := range expected {
+		if got[i].Type != exp.Type || got[i].Literal != exp.Literal {
+			t.Fatalf("token %d: expected %s %q, got %s %q", i, exp.Type, exp.Literal, got[i].Type, got[i].Literal)
+		}
+	}
+}
+
+// --- NestPush (<<<) tests ---
+
+func TestLexer_NestPush(t *testing.T) {
+	tokens := tokenize(t, `arr <<< [5]`)
+	expectTokens(t, tokens, []TokenExpect{
+		{TOKEN_IDENT, "arr"}, {TOKEN_NEST_PUSH, "<<<"}, {TOKEN_LBRACKET, "["}, {TOKEN_INT, "5"}, {TOKEN_RBRACKET, "]"},
+	})
+}
+
+func TestLexer_NestPushVsLshift(t *testing.T) {
+	tokens := tokenize(t, `<< <<<`)
+	expectTokens(t, tokens, []TokenExpect{
+		{TOKEN_LSHIFT, "<<"}, {TOKEN_NEST_PUSH, "<<<"},
+	})
+}
+
+func TestLexer_LshiftStillWorks(t *testing.T) {
+	tokens := tokenize(t, `arr << [5]`)
+	expectTokens(t, tokens, []TokenExpect{
+		{TOKEN_IDENT, "arr"}, {TOKEN_LSHIFT, "<<"}, {TOKEN_LBRACKET, "["}, {TOKEN_INT, "5"}, {TOKEN_RBRACKET, "]"},
+	})
+}
+
 func TestLexer_ForIn(t *testing.T) {
 	l := New(`for x in items { |> str(x) }`)
 	expected := []struct {

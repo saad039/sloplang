@@ -227,6 +227,15 @@ type PushStmt struct {
 func (ps *PushStmt) stmtNode()            {}
 func (ps *PushStmt) TokenLiteral() string { return "<<" }
 
+// NestPushStmt represents: object <<< value (nested push)
+type NestPushStmt struct {
+	Object Expr
+	Value  Expr
+}
+
+func (ns *NestPushStmt) stmtNode()            {}
+func (ns *NestPushStmt) TokenLiteral() string { return "<<<" }
+
 // IndexSetStmt represents: object@index = value
 type IndexSetStmt struct {
 	Object Expr

@@ -239,6 +239,10 @@ func (g *Generator) lowerStmt(stmt parser.Stmt) []ast.Stmt {
 		return []ast.Stmt{
 			&ast.ExprStmt{X: callRuntime("Push", g.lowerExpr(s.Object), g.lowerExpr(s.Value))},
 		}
+	case *parser.NestPushStmt:
+		return []ast.Stmt{
+			&ast.ExprStmt{X: callRuntime("NestPush", g.lowerExpr(s.Object), g.lowerExpr(s.Value))},
+		}
 	case *parser.IndexSetStmt:
 		return []ast.Stmt{
 			&ast.ExprStmt{X: callRuntime("IndexSet", g.lowerExpr(s.Object), g.lowerExpr(s.Index), g.lowerExpr(s.Value))},
@@ -542,7 +546,7 @@ func (g *Generator) lowerExpr(expr parser.Expr) ast.Expr {
 		for i, arg := range e.Args {
 			args[i] = g.lowerExpr(arg)
 		}
-		builtins := map[string]string{"str": "Str", "split": "Split", "to_num": "ToNum", "exit": "Exit"}
+		builtins := map[string]string{"str": "Str", "split": "Split", "to_num": "ToNum", "exit": "Exit", "to_chars": "ToChars", "to_int": "ToInt", "to_float": "ToFloat", "fmt_float": "FmtFloat"}
 		if fname, ok := builtins[e.Name]; ok {
 			return callRuntime(fname, args...)
 		}

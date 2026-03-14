@@ -3,6 +3,7 @@ package runtime
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -93,6 +94,104 @@ func Exit(sv *SlopValue) {
 		panic(fmt.Sprintf("sloplang: exit() requires int argument, got %T", sv.Elements[0]))
 	}
 	os.Exit(int(code))
+}
+
+// ToChars splits a string into an array of single-character strings.
+// Panics if the argument is not a single-element string.
+func ToChars(sv *SlopValue) *SlopValue {
+	if len(sv.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: to_chars requires a string argument, got %d elements", len(sv.Elements)))
+	}
+	s, ok := sv.Elements[0].(string)
+	if !ok {
+		panic(fmt.Sprintf("sloplang: to_chars requires a string argument, got %T", sv.Elements[0]))
+	}
+	runes := []rune(s)
+	elems := make([]any, len(runes))
+	for i, r := range runes {
+		elems[i] = string(r)
+	}
+	return &SlopValue{Elements: elems}
+}
+
+// ToInt converts a single-element numeric or string value to int64.
+// float64 is truncated toward zero. Panics on invalid input.
+func ToInt(sv *SlopValue) *SlopValue {
+	if len(sv.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: to_int: requires single-element array, got %d elements", len(sv.Elements)))
+	}
+	switch v := sv.Elements[0].(type) {
+	case int64:
+		return NewSlopValue(v)
+	case float64:
+		return NewSlopValue(int64(v))
+	case uint64:
+		if v > uint64(math.MaxInt64) {
+			panic("sloplang: to_int: uint64 value exceeds MaxInt64")
+		}
+		return NewSlopValue(int64(v))
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return NewSlopValue(i)
+		}
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return NewSlopValue(int64(f))
+		}
+		panic(fmt.Sprintf("sloplang: to_int: cannot convert string %q to int", v))
+	default:
+		panic(fmt.Sprintf("sloplang: to_int: cannot convert %T to int", v))
+	}
+}
+
+// ToFloat converts a single-element numeric or string value to float64.
+// Panics on invalid input.
+func ToFloat(sv *SlopValue) *SlopValue {
+	if len(sv.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: to_float: requires single-element array, got %d elements", len(sv.Elements)))
+	}
+	switch v := sv.Elements[0].(type) {
+	case float64:
+		return NewSlopValue(v)
+	case int64:
+		return NewSlopValue(float64(v))
+	case uint64:
+		return NewSlopValue(float64(v))
+	case string:
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return NewSlopValue(f)
+		}
+		panic(fmt.Sprintf("sloplang: to_float: cannot convert string %q to float", v))
+	default:
+		panic(fmt.Sprintf("sloplang: to_float: cannot convert %T to float", v))
+	}
+}
+
+// FmtFloat formats a numeric value with a fixed number of decimal places.
+// Returns a string. Panics if first arg is not numeric or second is not a non-negative int.
+func FmtFloat(val, decimals *SlopValue) *SlopValue {
+	if len(val.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: fmt_float: first argument must be numeric, got %d elements", len(val.Elements)))
+	}
+	if len(decimals.Elements) != 1 {
+		panic(fmt.Sprintf("sloplang: fmt_float: second argument must be non-negative integer, got %d elements", len(decimals.Elements)))
+	}
+	d, ok := decimals.Elements[0].(int64)
+	if !ok || d < 0 {
+		panic("sloplang: fmt_float: second argument must be non-negative integer")
+	}
+	var f float64
+	switch v := val.Elements[0].(type) {
+	case float64:
+		f = v
+	case int64:
+		f = float64(v)
+	case uint64:
+		f = float64(v)
+	default:
+		panic(fmt.Sprintf("sloplang: fmt_float: first argument must be numeric, got %T", v))
+	}
+	result := fmt.Sprintf("%.*f", int(d), f)
+	return NewSlopValue(result)
 }
 
 // ToNum converts a string to a number.

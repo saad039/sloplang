@@ -167,10 +167,16 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 			l.readChar()
 		} else if l.peekChar() == '<' {
-			tok.Type = TOKEN_LSHIFT
-			tok.Literal = "<<"
-			l.readChar()
-			l.readChar()
+			l.readChar() // consume first <
+			l.readChar() // consume second <, l.ch is now char after <<
+			if l.ch == '<' {
+				tok.Type = TOKEN_NEST_PUSH
+				tok.Literal = "<<<"
+				l.readChar() // consume third <
+			} else {
+				tok.Type = TOKEN_LSHIFT
+				tok.Literal = "<<"
+			}
 		} else if l.peekChar() == '|' {
 			tok.Type = TOKEN_STDIN_READ
 			tok.Literal = "<|"

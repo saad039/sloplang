@@ -495,6 +495,13 @@ func Push(sv *SlopValue, val *SlopValue) *SlopValue {
 	return sv
 }
 
+// NestPush appends val as a single nested element to sv. Mutates sv.
+// Unlike Push which spreads elements, NestPush always nests.
+func NestPush(sv *SlopValue, val *SlopValue) *SlopValue {
+	sv.Elements = append(sv.Elements, val)
+	return sv
+}
+
 // Pop removes and returns the last element. Mutates sv. Panics if empty.
 func Pop(sv *SlopValue) *SlopValue {
 	if len(sv.Elements) == 0 {
